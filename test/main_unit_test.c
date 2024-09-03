@@ -385,8 +385,6 @@ main(int argc, const char *argv[]){
       }
     }
   }
-  free(names_out);
-  free(names_in);
   
   // JG Note: added 03.22.2022 to test added params get set values. 
   // Params are not standard bmi i/o vars.
@@ -448,6 +446,89 @@ main(int argc, const char *argv[]){
     model->get_current_time(model, &now);
     printf(" current time: %f\n", now);
   }
+
+const char * var_name = "atmosphere_water__liquid_equivalent_precipitation_rate";
+double val = 99999;
+
+model->set_value(model, var_name, & val);
+model->update(model); //to push first precip value through
+
+  //Test getting serialized buffer
+  int serial_size = 0;
+  status = model->get_var_itemsize(model, "serial_state", &serial_size);
+  printf("serial_size is: %ld\n", serial_size);
+  printf("Status is: %ld\n", status);
+  char* buffer = malloc(serial_size);
+  status = model->get_value(model, "serial_state", buffer);
+
+  //assert(0);
+
+// for (i=0; i<count_in; i++){
+//     const char *var_name = names_in[i];
+//     var_name = "atmosphere_water__liquid_equivalent_precipitation_rate";
+//     double val = 99999999;
+//     printf("Setting input value for %s\n", var_name);
+//     model->set_value(model, var_name, &val);
+// }
+
+double* outputs_0 = malloc(count_out*sizeof(double));
+
+double* outputs_1 = malloc(count_out*sizeof(double));
+
+double* outputs_2 = malloc(count_out*sizeof(double));
+
+double* outputs_3 = malloc(count_out*sizeof(double));
+
+printf("Start State:\n");
+for (i=0; i<count_out; i++){
+  double val = -1;
+  model->get_value(model, names_out[i], &(outputs_0[i]));
+  printf("%lf  ", outputs_0[i]);
+}
+printf("\n");
+
+for (i=0; i < 100; i++){
+  model->set_value(model, var_name, &val);
+  model->update(model);
+}
+
+printf("Mid State:\n");
+for (i=0; i<count_out; i++){
+  double val = -1;
+  model->get_value(model, names_out[i], &(outputs_1[i]));
+  //printf("%lf  %s  ", outputs_0[i], names_out[i] );
+  printf("%lf  ", outputs_1[i] );
+}
+printf("\n");
+
+printf("Setting from serial state\n");
+model->set_value(model, "serial_state", buffer);
+printf("Status is: %ld\n", status);
+
+
+printf("Restart State:\n");
+for (i=0; i<count_out; i++){
+  double val = -1;
+  model->get_value(model, names_out[i], &(outputs_2[i]));
+  printf("%lf  ", outputs_2[i]);
+}
+printf("\n");
+
+for (i=0; i < 100; i++){
+  model->set_value(model, var_name, &val);
+  model->update(model);
+}
+
+printf("End State:\n");
+for (i=0; i<count_out; i++){
+  double val = -1;
+  model->get_value(model, names_out[i], &(outputs_3[i]));
+  printf("%lf  ", outputs_3[i]);
+}
+printf("\n");
+
+assert(0);
+
   
   cfe_state_struct *cfe1;
   cfe1 = (cfe_state_struct *) model->data;
@@ -459,6 +540,9 @@ main(int argc, const char *argv[]){
     if (status == BMI_FAILURE) return BMI_FAILURE;
     printf("\n******************\nEND BMI UNIT TEST\n\n");
   }
+
+  free(names_out);
+  free(names_in);
   
   return 0;
 }

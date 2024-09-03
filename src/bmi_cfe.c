@@ -42,6 +42,10 @@ static const char *param_var_types[PARAM_VAR_NAME_COUNT] = {
 // Should we add "/0" after each string here?
 // Everything works without it.
 //---------------------------------------------
+Variable state_info[] = {
+    {0, "name", "type", 1}
+};
+
 Variable var_info[] = {
 	{ 0,  "timestep_rainfall_input_m",        "double", 1 },
 	{ 1,  "soil_reservoir_storage_deficit_m", "double", 1 },
@@ -1537,6 +1541,11 @@ static int Get_var_type (Bmi *self, const char *name, char * type)
         }
     }
 
+    if(strcmp(name, "serial_state") == 0 ){
+        strncpy(type, "char", BMI_MAX_TYPE_NAME);
+        printf("Getting serial state type: %s\n", type);
+        return BMI_SUCCESS;
+    }
     // If we get here, it means the variable name wasn't recognized
     type[0] = '\0';
     return BMI_FAILURE;
@@ -1571,6 +1580,10 @@ static int Get_var_itemsize (Bmi *self, const char *name, int * size)
     }
     else if (strcmp (type, "long") == 0) {
         *size = sizeof(long);
+        return BMI_SUCCESS;
+    }
+    else if ( strcmp(name, "serial_state") == 0 ){
+        *size = sizeof_cfe_state( (cfe_state_struct *)(self->data) );
         return BMI_SUCCESS;
     }
     else {
@@ -1830,6 +1843,7 @@ static int Get_value_ptr (Bmi *self, const char *name, void **dest)
     }
     
     if (strcmp (name, "Q_OUT") == 0) {
+        //printf("Whats it take to get some flux??? %lf\n", ((cfe_state_struct *)(self->data))->flux_Qout_m);
         *dest = ((cfe_state_struct *)(self->data))->flux_Qout_m;
         return BMI_SUCCESS;
     }
@@ -1913,6 +1927,11 @@ static int Get_value_ptr (Bmi *self, const char *name, void **dest)
     }
 //-------------------------------------------------------------------
 
+    if( strcmp (name, "serial_state") == 0){
+        serialize_cfe_state( (cfe_state_struct *)(self->data), *dest);
+        //TODO return flag for success/failure from serialize_cfe_state
+        return BMI_SUCCESS;
+    }
     return BMI_FAILURE;
 }
 
@@ -1926,9 +1945,9 @@ static int Get_value_at_indices (Bmi *self, const char *name, void *dest, int *i
     // associated names array, plus either:
     //      0 if it is in the output variable array or
     //      OUTPUT_VAR_NAME_COUNT if it is in the input variable array
-    int adjusted_index = Get_adjusted_index_for_variable(name);
-    if (adjusted_index < 0)
-        return BMI_FAILURE;
+    // int adjusted_index = Get_adjusted_index_for_variable(name);
+    // if (adjusted_index < 0)
+    //     return BMI_FAILURE;
 
     int var_item_size;
     int status = Get_var_itemsize(self, name, &var_item_size);
@@ -1968,15 +1987,19 @@ static int Set_value_at_indices (Bmi *self, const char *name, int * inds, int le
         return BMI_FAILURE;
     
     // Get "adjusted_index" for variable
-    int adjusted_index = Get_adjusted_index_for_variable(name);
-    if (adjusted_index < 0)
-        return BMI_FAILURE;
+    // int adjusted_index = Get_adjusted_index_for_variable(name);
+    // if (adjusted_index < 0)
+    //     return BMI_FAILURE;
 
     int var_item_size;
     int status = Get_var_itemsize(self, name, &var_item_size);
     if (status == BMI_FAILURE)
         return BMI_FAILURE;
 
+    if( strcmp(name, "serial_state") == 0 ){
+        deserialize_cfe_state((cfe_state_struct *)self->data, src);
+        return BMI_SUCCESS;
+    }
     // For now, all variables are non-array scalar values, with only 1 item of type double
 
     // Thus, there is only ever one value to return (len must be 1) and it must always be from index 0

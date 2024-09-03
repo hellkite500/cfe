@@ -9,6 +9,7 @@
 #include <assert.h>
 #include "conceptual_reservoir.h"
 #include "giuh.h"
+#include "serialize.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -87,6 +88,70 @@ double refkdt;
 double soil_storage;
 };
 
+static inline uint16_t sizeof_soil_params(){
+    return 12*sizeof(double);
+}
+
+static void serialize_soil_params(struct NWM_soil_parameters* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //serialize smcmax
+        pos = copy_to_double(&(p->smcmax), pos);
+        //serialize wltsmc
+        pos = copy_to_double(&(p->wltsmc), pos);
+        //serialize satdk
+        pos = copy_to_double(&(p->satdk), pos);
+        //serialize satpsi
+        pos = copy_to_double(&(p->satpsi), pos);
+        //serialize bb
+        pos = copy_to_double(&(p->bb), pos);
+        //serialize mult
+        pos = copy_to_double(&(p->mult), pos);
+        //serialize slop
+        pos = copy_to_double(&(p->slop), pos);
+        //serialize D
+        pos = copy_to_double(&(p->D), pos);
+        //serialize wilting_point_m
+        pos = copy_to_double(&(p->wilting_point_m), pos);
+        //serialize alpha_fc
+        pos = copy_to_double(&(p->alpha_fc), pos);
+        //serialize refkdt
+        pos = copy_to_double(&(p->refkdt), pos);
+        //serialize soil_storage
+        pos = copy_to_double(&(p->soil_storage), pos);
+    }
+}
+
+static void deserialize_soil_params(struct NWM_soil_parameters* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //serialize smcmax
+        pos = copy_from_double(pos, &(p->smcmax));
+        //serialize wltsmc
+        pos = copy_from_double(pos, &(p->wltsmc));
+        //serialize satdk
+        pos = copy_from_double(pos, &(p->satdk));
+        //serialize satpsi
+        pos = copy_from_double(pos, &(p->satpsi));
+        //serialize bb
+        pos = copy_from_double(pos, &(p->bb));
+        //serialize mult
+        pos = copy_from_double(pos, &(p->mult));
+        //serialize slop
+        pos = copy_from_double(pos, &(p->slop));
+        //serialize D
+        pos = copy_from_double(pos, &(p->D));
+        //serialize wilting_point_m
+        pos = copy_from_double(pos, &(p->wilting_point_m));
+        //serialize alpha_fc
+        pos = copy_from_double(pos, &(p->alpha_fc));
+        //serialize refkdt
+        pos = copy_from_double(pos, &(p->refkdt));
+        //serialize soil_storage
+        pos = copy_from_double(pos, &(p->soil_storage));
+    }
+}
+
 struct evapotranspiration_structure {
     double potential_et_m_per_s;
     double potential_et_m_per_timestep;
@@ -95,6 +160,45 @@ struct evapotranspiration_structure {
     double actual_et_from_soil_m_per_timestep;
     double actual_et_m_per_timestep;
 };
+
+static inline uint16_t sizeof_et(){
+    return 6*sizeof(double);
+}
+
+static void serialize_et(struct evapotranspiration_structure* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //serialize potential_et_m_per_s
+        pos = copy_to_double(&(p->potential_et_m_per_s), pos);
+        //serialize potential_et_m_per_timestep
+        pos = copy_to_double(&(p->potential_et_m_per_timestep), pos);
+        //serialize reduced_potential_et_m_per_timestep
+        pos = copy_to_double(&(p->reduced_potential_et_m_per_timestep), pos);
+        //serialize actual_et_from_rain_m_per_timestep
+        pos = copy_to_double(&(p->actual_et_from_rain_m_per_timestep), pos);
+        //serialize actual_et_from_soil_m_per_timestep
+        pos = copy_to_double(&(p->actual_et_from_soil_m_per_timestep), pos);
+        //serialize actual_et_m_per_timestep
+        pos = copy_to_double(&(p->actual_et_m_per_timestep), pos);
+    }
+}
+static void deserialize_et(struct evapotranspiration_structure* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //serialize potential_et_m_per_s
+        pos = copy_from_double(pos, &(p->potential_et_m_per_s));
+        //serialize potential_et_m_per_timestep
+        pos = copy_from_double(pos, &(p->potential_et_m_per_timestep));
+        //serialize reduced_potential_et_m_per_timestep
+        pos = copy_from_double(pos, &(p->reduced_potential_et_m_per_timestep));
+        //serialize actual_et_from_rain_m_per_timestep
+        pos = copy_from_double(pos, &(p->actual_et_from_rain_m_per_timestep));
+        //serialize actual_et_from_soil_m_per_timestep
+        pos = copy_from_double(pos, &(p->actual_et_from_soil_m_per_timestep));
+        //serialize actual_et_m_per_timestep
+        pos = copy_from_double(pos, &(p->actual_et_m_per_timestep));
+    }
+}
 typedef struct evapotranspiration_structure evapotranspiration_structure;
 
 struct massbal
@@ -123,6 +227,77 @@ struct massbal
     double volout              ;
     double volend              ;
 };
+
+static inline uint16_t sizeof_massbal(){
+    return 23*sizeof(double);
+}
+
+static void serialize_massbal(struct massbal* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        pos = copy_to_double(&(p->volstart), pos);
+        pos = copy_to_double(&(p->vol_runoff), pos);
+        pos = copy_to_double(&(p->vol_infilt), pos);
+        pos = copy_to_double(&(p->vol_out_giuh), pos);
+        pos = copy_to_double(&(p->vol_end_giuh), pos);
+        pos = copy_to_double(&(p->vol_to_gw), pos);
+        pos = copy_to_double(&(p->vol_in_gw_start), pos);
+        pos = copy_to_double(&(p->vol_in_gw_end), pos);
+        pos = copy_to_double(&(p->vol_from_gw), pos);
+        pos = copy_to_double(&(p->vol_in_nash), pos);
+        pos = copy_to_double(&(p->vol_in_nash_end), pos);
+        pos = copy_to_double(&(p->vol_out_nash), pos);
+        pos = copy_to_double(&(p->volstart), pos);
+        pos = copy_to_double(&(p->vol_runoff), pos);
+        pos = copy_to_double(&(p->vol_infilt), pos);
+        pos = copy_to_double(&(p->vol_out_giuh), pos);
+        pos = copy_to_double(&(p->vol_soil_start), pos);
+        pos = copy_to_double(&(p->vol_to_soil), pos);
+        pos = copy_to_double(&(p->vol_soil_to_lat_flow), pos);
+        pos = copy_to_double(&(p->vol_soil_to_gw), pos);
+        pos = copy_to_double(&(p->vol_soil_end), pos);
+        pos = copy_to_double(&(p->vol_et_from_soil), pos);
+        pos = copy_to_double(&(p->vol_et_from_rain), pos);
+        pos = copy_to_double(&(p->vol_et_to_atm), pos);
+        pos = copy_to_double(&(p->volin), pos);
+        pos = copy_to_double(&(p->volout), pos);
+        pos = copy_to_double(&(p->volend), pos);
+    }
+}
+
+static void deserialize_massbal(struct massbal* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        pos = copy_from_double(pos, &(p->volstart));
+        pos = copy_from_double(pos, &(p->vol_runoff));
+        pos = copy_from_double(pos, &(p->vol_infilt));
+        pos = copy_from_double(pos, &(p->vol_out_giuh));
+        pos = copy_from_double(pos, &(p->vol_end_giuh));
+        pos = copy_from_double(pos, &(p->vol_to_gw));
+        pos = copy_from_double(pos, &(p->vol_in_gw_start));
+        pos = copy_from_double(pos, &(p->vol_in_gw_end));
+        pos = copy_from_double(pos, &(p->vol_from_gw));
+        pos = copy_from_double(pos, &(p->vol_in_nash));
+        pos = copy_from_double(pos, &(p->vol_in_nash_end));
+        pos = copy_from_double(pos, &(p->vol_out_nash));
+        pos = copy_from_double(pos, &(p->volstart));
+        pos = copy_from_double(pos, &(p->vol_runoff));
+        pos = copy_from_double(pos, &(p->vol_infilt));
+        pos = copy_from_double(pos, &(p->vol_out_giuh));
+        pos = copy_from_double(pos, &(p->vol_soil_start));
+        pos = copy_from_double(pos, &(p->vol_to_soil));
+        pos = copy_from_double(pos, &(p->vol_soil_to_lat_flow));
+        pos = copy_from_double(pos, &(p->vol_soil_to_gw));
+        pos = copy_from_double(pos, &(p->vol_soil_end));
+        pos = copy_from_double(pos, &(p->vol_et_from_soil));
+        pos = copy_from_double(pos, &(p->vol_et_from_rain));
+        pos = copy_from_double(pos, &(p->vol_et_to_atm));
+        pos = copy_from_double(pos, &(p->volin));
+        pos = copy_from_double(pos, &(p->volout));
+        pos = copy_from_double(pos, &(p->volend));
+    }
+}
+
 typedef struct massbal massbal;
 
 // define data types
@@ -139,6 +314,43 @@ struct direct_runoff_parameters_structure{
     double urban_decimal_fraction;
     double ice_content_threshold; // ice content above which soil is impermeable
 };
+static inline uint16_t sizeof_runoff_params(){
+    uint16_t bytes = 0;
+    bytes += sizeof(surface_water_partition_type);
+    bytes += 6*sizeof(double);
+    return bytes;
+}
+
+static void serialize_runoff_params(struct direct_runoff_parameters_structure* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //Just in case enum isn't a typical int...
+        memcpy(pos, &(p->surface_partitioning_scheme), sizeof(surface_water_partition_type));
+        pos += sizeof(surface_water_partition_type);
+        pos = copy_to_double(&(p->Schaake_adjusted_magic_constant_by_soil_type), pos);
+        pos = copy_to_double(&(p->a_Xinanjiang_inflection_point_parameter), pos);
+        pos = copy_to_double(&(p->b_Xinanjiang_shape_parameter), pos);
+        pos = copy_to_double(&(p->x_Xinanjiang_shape_parameter), pos);
+        pos = copy_to_double(&(p->urban_decimal_fraction), pos);
+        pos = copy_to_double(&(p->ice_content_threshold), pos);
+    }
+}
+
+static void deserialize_runoff_params(struct direct_runoff_parameters_structure* p, char* buffer){
+
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //Just in case enum isn't a typical int...
+        memcpy(&(p->surface_partitioning_scheme), pos, sizeof(surface_water_partition_type));
+        pos += sizeof(surface_water_partition_type);
+        pos = copy_from_double(pos, &(p->Schaake_adjusted_magic_constant_by_soil_type));
+        pos = copy_from_double(pos, &(p->a_Xinanjiang_inflection_point_parameter));
+        pos = copy_from_double(pos, &(p->b_Xinanjiang_shape_parameter));
+        pos = copy_from_double(pos, &(p->x_Xinanjiang_shape_parameter));
+        pos = copy_from_double(pos, &(p->urban_decimal_fraction));
+        pos = copy_from_double(pos, &(p->ice_content_threshold));
+    }
+}
 typedef struct direct_runoff_parameters_structure direct_runoff_parameters_structure;
 
 

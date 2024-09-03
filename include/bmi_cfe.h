@@ -42,6 +42,48 @@ struct aorc_forcing_data_cfe
     double longitude;                       // degrees east of prime meridian. Negative west          | longitude
     long int time; //TODO: type?           // seconds since 1970-01-01 00:00:00.0 0:00               | time
 } ;
+static inline uint16_t sizeof_aorc_data(){
+    uint16_t bytes = 0;
+    bytes += 10*sizeof(double);
+    bytes += 1*sizeof(long int);
+    return bytes;
+}
+
+static void serialize_aorc_data(struct aorc_forcing_data_cfe* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        pos = copy_to_double(&(p->precip_kg_per_m2), pos);
+        pos = copy_to_double(&(p->incoming_longwave_W_per_m2), pos);
+        pos = copy_to_double(&(p->incoming_shortwave_W_per_m2), pos);
+        pos = copy_to_double(&(p->surface_pressure_Pa), pos);
+        pos = copy_to_double(&(p->specific_humidity_2m_kg_per_kg), pos);
+        pos = copy_to_double(&(p->air_temperature_2m_K), pos);
+        pos = copy_to_double(&(p->u_wind_speed_10m_m_per_s), pos);
+        pos = copy_to_double(&(p->v_wind_speed_10m_m_per_s), pos);
+        pos = copy_to_double(&(p->latitude), pos);
+        pos = copy_to_double(&(p->longitude), pos);
+        memcpy(pos, &(p->time), sizeof(long int));
+        pos += sizeof(long int);
+    }
+}
+
+static void deserialize_aorc_data(struct aorc_forcing_data_cfe* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        pos = copy_from_double(pos, &(p->precip_kg_per_m2));
+        pos = copy_from_double(pos, &(p->incoming_longwave_W_per_m2));
+        pos = copy_from_double(pos, &(p->incoming_shortwave_W_per_m2));
+        pos = copy_from_double(pos, &(p->surface_pressure_Pa));
+        pos = copy_from_double(pos, &(p->specific_humidity_2m_kg_per_kg));
+        pos = copy_from_double(pos, &(p->air_temperature_2m_K));
+        pos = copy_from_double(pos, &(p->u_wind_speed_10m_m_per_s));
+        pos = copy_from_double(pos, &(p->v_wind_speed_10m_m_per_s));
+        pos = copy_from_double(pos, &(p->latitude));
+        pos = copy_from_double(pos, &(p->longitude));
+        memcpy(&(p->time), pos, sizeof(long int));
+        pos += sizeof(long int);
+    }
+}
 typedef struct aorc_forcing_data_cfe aorc_forcing_data_cfe;
 
 struct cfe_state_struct {
@@ -118,6 +160,202 @@ struct cfe_state_struct {
     int verbosity;
 
 };
+
+static inline uint16_t sizeof_cfe_state(struct cfe_state_struct* p){
+    uint16_t bytes = 0;
+    bytes += 8*sizeof(double);
+    bytes += 7*sizeof(int);
+    bytes += 1*sizeof(long);
+    bytes += strlen(p->forcing_file); //TODO might need to write this length to flatt buffer
+    bytes += sizeof_reservoir(&(p->soil_reservoir));
+    bytes += sizeof_reservoir(&(p->gw_reservoir));
+    bytes += sizeof_soil_params();
+    bytes += sizeof_et();
+    bytes += sizeof_massbal();
+    bytes += sizeof_runoff_params();
+    bytes += sizeof_aorc_data();
+
+    if(p->is_forcing_from_bmi){
+        bytes += sizeof(double); //forcing_data pointer is dynamically allocated to single double
+        bytes += sizeof(long); //focing_data_time pointer is dyanmically allocated to single long
+    }
+    else{
+        //Error??? Or try to serialize the num_time_steps+1 data???
+        assert(0); //not using bmi!!!
+    }
+    bytes += p->num_giuh_ordinates*sizeof(double);
+    bytes += p->N_nash*sizeof(double);
+    bytes += (p->num_giuh_ordinates+1)*sizeof(double);
+    bytes += 7*sizeof(double); //dynamically allocated "flux" vars are single double, 7 flux vars
+    //printf("Computed %ld bytes internally\n", bytes);
+    return bytes;
+}
+
+static void serialize_cfe_state(struct cfe_state_struct* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //printf("Putting %lf into buff\n", p->timestep_rainfall_input_m);
+        pos = copy_to_double(&(p->timestep_rainfall_input_m), pos);
+        //printf("Reading %lf from buff\n", *(double*) buffer);
+        double tmp = -1;
+        copy_to_double(buffer, &tmp);
+        //printf("Reading %lf from var\n", tmp);
+        //printf("Setting next %lf \n", p->soil_reservoir_storage_deficit_m);
+        char* tmp2 = pos;
+        pos = copy_to_double(&(p->soil_reservoir_storage_deficit_m), pos);
+        //printf("Reading next %lf \n", *(double*) tmp2);
+        pos = copy_to_double(&(p->infiltration_depth_m), pos);
+        pos = copy_to_double(&(p->gw_reservoir_storage_deficit_m), pos);
+        pos = copy_to_double(&(p->timestep_h), pos);
+        serialize_reservoir(&(p->soil_reservoir), pos);
+        pos += sizeof_reservoir(&(p->soil_reservoir));
+        
+        serialize_reservoir(&(p->gw_reservoir), pos);
+        pos += sizeof_reservoir(&(p->gw_reservoir));
+        
+        serialize_soil_params(&(p->NWM_soil_params), pos);
+        pos += sizeof_soil_params();
+        
+        serialize_et(&(p->et_struct), pos);
+        pos += sizeof_et();
+
+        serialize_massbal(&(p->vol_struct), pos);
+        pos += sizeof_massbal();
+
+        serialize_runoff_params(&(p->direct_runoff_params_struct), pos);
+        pos += sizeof_runoff_params();
+
+        pos = copy_to_long(&(p->epoch_start_time), pos);
+        pos = copy_to_int(&(p->num_timesteps), pos);
+        pos = copy_to_int(&(p->current_time_step), pos);
+        pos = copy_to_int(&(p->time_step_size), pos);
+        pos = copy_to_double(&(p->time_step_fraction), pos);
+        pos = copy_to_int(&(p->is_forcing_from_bmi), pos);
+        
+        memcpy(pos, p->forcing_file, strlen(p->forcing_file)+1); //copy string plus null terminator
+        pos += strlen(p->forcing_file)+1;
+
+        pos = copy_to_double(&(p->K_lf), pos);
+        pos = copy_to_double(&(p->K_nash), pos);
+        pos = copy_to_int(&(p->N_nash), pos);
+        pos = copy_to_int(&(p->num_giuh_ordinates), pos);
+
+        serialize_aorc_data(&(p->aorc), pos);
+        pos += sizeof_aorc_data();
+
+        //FIXME copy dynamic pointers
+        if(p->is_forcing_from_bmi){
+            pos = copy_to_double(p->forcing_data_precip_kg_per_m2, pos);
+            pos = copy_to_long(p->forcing_data_time, pos);
+        }
+        else{
+            //Error??? Or try to serialize the num_time_steps+1 data???
+            assert(0); //not using bmi!!!
+        }
+
+        pos = copy_to_double_array(p->giuh_ordinates, pos, p->num_giuh_ordinates);
+        pos = copy_to_double_array(p->nash_storage, pos, p->N_nash);
+        pos = copy_to_double_array(p->runoff_queue_m_per_timestep, pos, p->num_giuh_ordinates);
+
+        //printf("BEFORE: %lf\n", p->flux_output_direct_runoff_m);
+        pos = copy_to_double(p->flux_output_direct_runoff_m, pos);
+        //printf("AFTER: %lf\n", (double*) pos);
+        pos = copy_to_double(p->flux_giuh_runoff_m, pos);
+        pos = copy_to_double(p->flux_nash_lateral_runoff_m, pos);
+        pos = copy_to_double(p->flux_from_deep_gw_to_chan_m, pos);
+        pos = copy_to_double(p->flux_perc_m, pos);
+        pos = copy_to_double(p->flux_lat_m, pos);
+        pos = copy_to_double(p->flux_Qout_m, pos);
+
+        pos = copy_to_int(&(p->verbosity), pos);
+    }
+}
+
+static void deserialize_cfe_state(struct cfe_state_struct* p, char* buffer){
+    if(p!= NULL && buffer != NULL){
+        char* pos = buffer;
+        //printf("\n%p %p\n\n", pos, buffer);
+        // printf("Putting %lf from buff\n", *(double*) buffer);
+        // double tmp = -1;
+        // copy_from_double(buffer, &tmp);
+        // printf("Reading %lf from var\n", tmp);
+        pos = copy_from_double(pos, &(p->timestep_rainfall_input_m));
+        //printf("Reading %lf from struct\n", p->timestep_rainfall_input_m);
+        //printf("\n%p %p\n\n", pos, buffer+sizeof(double));
+        pos = copy_from_double(pos, &(p->soil_reservoir_storage_deficit_m));
+        //printf("Reading next %lf \n", p->soil_reservoir_storage_deficit_m);
+        //printf("From buff offset %lf, \n", *(double*)(buffer+sizeof(double)));
+        pos = copy_from_double(pos, &(p->infiltration_depth_m));
+        pos = copy_from_double(pos, &(p->gw_reservoir_storage_deficit_m));
+        pos = copy_from_double(pos, &(p->timestep_h));
+        deserialize_reservoir(&(p->soil_reservoir), pos);
+        pos += sizeof_reservoir(&(p->soil_reservoir));
+        
+        deserialize_reservoir(&(p->gw_reservoir), pos);
+        pos += sizeof_reservoir(&(p->gw_reservoir));
+        
+        deserialize_soil_params(&(p->NWM_soil_params), pos);
+        pos += sizeof_soil_params();
+        
+        deserialize_et(&(p->et_struct), pos);
+        pos += sizeof_et();
+
+        deserialize_massbal(&(p->vol_struct), pos);
+        pos += sizeof_massbal();
+
+        deserialize_runoff_params(&(p->direct_runoff_params_struct), pos);
+        pos += sizeof_runoff_params();
+
+        pos = copy_from_long(pos, &(p->epoch_start_time));
+        pos = copy_from_int(pos, &(p->num_timesteps));
+        pos = copy_from_int(pos, &(p->current_time_step));
+        pos = copy_from_int(pos, &(p->time_step_size));
+        pos = copy_from_double(pos, &(p->time_step_fraction));
+        pos = copy_from_int(pos, &(p->is_forcing_from_bmi));
+        
+        memcpy(p->forcing_file, pos, strlen(pos)+1); //copy string plus null terminator
+        pos += strlen(p->forcing_file)+1;
+
+        pos = copy_from_double(pos, &(p->K_lf));
+        pos = copy_from_double(pos, &(p->K_nash));
+        pos = copy_from_int(pos, &(p->N_nash));
+        pos = copy_from_int(pos, &(p->num_giuh_ordinates));
+
+        deserialize_aorc_data(&(p->aorc), pos);
+        pos += sizeof_aorc_data();
+
+        //FIXME copy dynamic pointers
+        if(p->is_forcing_from_bmi){
+            pos = copy_from_double(pos, p->forcing_data_precip_kg_per_m2);
+            pos = copy_from_long(pos, p->forcing_data_time);
+        }
+        else{
+            //Error??? Or try to serialize the num_time_steps+1 data???
+            assert(0); //not using bmi!!!
+        }
+
+        pos = copy_from_double_array(pos, p->giuh_ordinates, p->num_giuh_ordinates);
+        pos = copy_from_double_array(pos, p->nash_storage, p->N_nash);
+        pos = copy_from_double_array(pos, p->runoff_queue_m_per_timestep, p->num_giuh_ordinates);
+
+        //printf("BEFORE: %lf\n", (double*)pos);
+        pos = copy_from_double(pos, p->flux_output_direct_runoff_m);
+        //printf("AFTER: %lf\n", p->flux_output_direct_runoff_m);
+
+        pos = copy_from_double(pos, p->flux_giuh_runoff_m);
+        pos = copy_from_double(pos, p->flux_nash_lateral_runoff_m);
+        pos = copy_from_double(pos, p->flux_from_deep_gw_to_chan_m);
+        pos = copy_from_double(pos, p->flux_perc_m);
+        pos = copy_from_double(pos, p->flux_lat_m);
+        pos = copy_from_double(pos, p->flux_Qout_m);
+
+        pos = copy_from_int(pos, &(p->verbosity));
+    }
+    else{
+        assert(0);
+    }
+}
+
 typedef struct cfe_state_struct cfe_state_struct;
 
 extern double greg_2_jul(long year, long mon, long day, long h, long mi,
