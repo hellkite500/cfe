@@ -175,3 +175,23 @@ double* flux_lat_m;
 double* flux_Qout_m;
 
 int verbosity;
+
+
+# Alternate Idea
+engine->get_value("states")
+BMI returns list of integer indicies
+[0, 1, 2, 3, 4]
+
+
+engine->get_value("states:0")
+BMI returns state var at index 0
+
+NEED
+get_var_type
+get_var_itemsize
+get_var_nbytes
+
+Implement set_value as well...
+
+This requires the BMI to keep an index of state variables
+and be able to provide them to BMI by index.
