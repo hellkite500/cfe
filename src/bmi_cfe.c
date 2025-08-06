@@ -3254,6 +3254,7 @@ extern void initialize_volume_trackers(cfe_state_struct* cfe_ptr) {
     cfe_ptr->vol_struct.vol_et_from_retention_depth = 0;
     cfe_ptr->vol_struct.vol_et_to_atm    = 0;
     cfe_ptr->vol_struct.cummulative_vol_in = cfe_ptr->vol_struct.volstart;
+    cfe_ptr->vol_struct.volume_in_domain = cfe_ptr->vol_struct.volstart;
 }
 
 /**************************************************************************/

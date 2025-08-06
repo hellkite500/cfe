@@ -125,6 +125,7 @@ struct massbal
     double volend              ;
     double vol_et_from_retention_depth;
     double cummulative_vol_in; //volstart + volin
+    double volume_in_domain; // total volume in domain at end of time step
 };
 typedef struct massbal massbal;
 

@@ -284,6 +284,26 @@ extern void cfe(
   massbal_struct->vol_in_nash   += flux_lat_m;
   massbal_struct->vol_out_nash  += nash_lateral_runoff_m;
 
+  // Track the total volume held in the domain at the end of the time step
+  int i = 0;
+  //Reservoir storages
+  massbal_struct->volume_in_domain = soil_reservoir_struct->storage_m+gw_reservoir_struct->storage_m;
+  //Surface storage
+  if (surface_runoff_scheme == GIUH) {
+      for(i=0;i<num_giuh_ordinates;i++){
+	      massbal_struct->volume_in_domain += runoff_queue_m_per_timestep_arr[i];
+    }
+  }
+  if (surface_runoff_scheme == NASH_CASCADE){
+    for(i=0;i<nash_surface_params->N_nash; i++){
+      massbal_struct->volume_in_domain += nash_surface_params->nash_storage[i];
+    }
+  }
+  //Subsurface storage
+  for(i=0;i<N_nash_subsurface; i++){
+    massbal_struct->volume_in_domain += nash_storage_arr[i];
+  }
+                    
 #ifdef DEBUG
         fprintf(out_debug_fptr,"%d %lf %lf  %lf\n",tstep,flux_lat_m,nash_lateral_runoff_m,flux_from_deep_gw_to_chan_m);
 #endif
