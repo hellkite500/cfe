@@ -68,7 +68,7 @@ extern void cfe(
   //##################################################
   // partition rainfall using Schaake function
   //##################################################
-
+  massbal_struct->volin += timestep_rainfall_input_m;
   evap_struct->potential_et_m_per_timestep = evap_struct->potential_et_m_per_s * time_step_size;
   evap_struct->reduced_potential_et_m_per_timestep = evap_struct->potential_et_m_per_s * time_step_size;
 

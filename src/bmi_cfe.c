@@ -1557,7 +1557,6 @@ static int Update (Bmi *self)
     //Adjust the rainfall input by a potential fraction of the time step
     cfe_ptr->timestep_rainfall_input_m *= cfe_ptr->time_step_fraction;
     //Accumulate volume for mass balance
-    cfe_ptr->vol_struct.volin += cfe_ptr->timestep_rainfall_input_m;
 
     run_cfe(cfe_ptr);
 
