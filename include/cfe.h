@@ -124,6 +124,7 @@ struct massbal
     double volout              ;
     double volend              ;
     double vol_et_from_retention_depth;
+    double cummulative_vol_in; //volstart + volin
 };
 typedef struct massbal massbal;
 
