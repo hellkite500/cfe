@@ -126,6 +126,7 @@ struct massbal
     double vol_et_from_retention_depth;
     double cummulative_vol_in; //volstart + volin
     double volume_in_domain; // total volume in domain at end of time step
+    double leakage; // Accumulate any known leakage or other losses from the domain, e.g. deep groundwater
 };
 typedef struct massbal massbal;
 
