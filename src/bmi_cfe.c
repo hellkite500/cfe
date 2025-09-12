@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "bmi.h"
 #include "bmi_cfe.h"
+#include "ngen_utilities.h"
 #include <time.h>
 #include <float.h>
 #ifndef WATER_SPECIFIC_WEIGHT
@@ -1746,6 +1747,11 @@ static int Get_var_type (Bmi *self, const char *name, char * type)
         }
     }
 
+    // Finally check to see if in mass balance array
+    if( get_mass_balance_var_type(name, type) == BMI_SUCCESS ) {
+        return BMI_SUCCESS;
+    }
+
     // If we get here, it means the variable name wasn't recognized
     type[0] = '\0';
     return BMI_FAILURE;
@@ -1828,6 +1834,10 @@ static int Get_var_units (Bmi *self, const char *name, char * units)
             return BMI_SUCCESS;
         }
     }
+    // Finally check to see if in mass balance array
+    if( get_mass_balance_unit(name, units) == BMI_SUCCESS ) {
+        return BMI_SUCCESS;
+    }
     // If we get here, it means the variable name wasn't recognized
     units[0] = '\0';
     return BMI_FAILURE;
@@ -1866,6 +1876,9 @@ static int Get_var_nbytes (Bmi *self, const char *name, int * nbytes)
 	  break;
         }
       }
+    }
+    if (item_count < 1) {
+        item_count = get_mass_balance_item_count(name);
     }
     if (item_count < 1)
         item_count = ((cfe_state_struct *) self->data)->num_timesteps;
@@ -2129,6 +2142,31 @@ static int Get_value_ptr (Bmi *self, const char *name, void **dest)
     }
     //-------------------------------------------------------------------
 
+    //Mass Balance protocol
+    if (strcmp (name, NGEN_MASS_IN) == 0) {
+        cfe_state_struct *cfe_ptr;
+        cfe_ptr = (cfe_state_struct *) self->data;
+        *dest = (void*)&cfe_ptr->vol_struct.cummulative_vol_in;
+        return BMI_SUCCESS;
+    }
+    if (strcmp (name, NGEN_MASS_OUT) == 0) {
+        cfe_state_struct *cfe_ptr;
+        cfe_ptr = (cfe_state_struct *) self->data;
+        *dest = (void*)&cfe_ptr->vol_struct.volout;
+        return BMI_SUCCESS;
+    }
+    if (strcmp (name, NGEN_MASS_STORED) == 0){
+        cfe_state_struct *cfe_ptr;
+        cfe_ptr = (cfe_state_struct *) self->data;
+        *dest = (void*)&cfe_ptr->vol_struct.volume_in_domain;
+        return BMI_SUCCESS;
+    }
+    if (strcmp (name, NGEN_MASS_LEAKED) == 0){
+        cfe_state_struct *cfe_ptr;
+        cfe_ptr = (cfe_state_struct *) self->data;
+        *dest = (void*)&cfe_ptr->vol_struct.leakage;
+        return BMI_SUCCESS;
+    }
     return BMI_FAILURE;
 }
 
