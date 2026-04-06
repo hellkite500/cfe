@@ -2146,7 +2146,7 @@ static int Get_value_ptr (Bmi *self, const char *name, void **dest)
     if (strcmp (name, NGEN_MASS_IN) == 0) {
         cfe_state_struct *cfe_ptr;
         cfe_ptr = (cfe_state_struct *) self->data;
-        *dest = (void*)&cfe_ptr->vol_struct.cummulative_vol_in;
+        *dest = (void*)&cfe_ptr->vol_struct.cumulative_vol;
         return BMI_SUCCESS;
     }
     if (strcmp (name, NGEN_MASS_OUT) == 0) {
@@ -3292,7 +3292,7 @@ extern void initialize_volume_trackers(cfe_state_struct* cfe_ptr) {
     cfe_ptr->vol_struct.vol_et_from_rain = 0;
     cfe_ptr->vol_struct.vol_et_from_retention_depth = 0;
     cfe_ptr->vol_struct.vol_et_to_atm    = 0;
-    cfe_ptr->vol_struct.cummulative_vol_in = cfe_ptr->vol_struct.volstart;
+    cfe_ptr->vol_struct.cumulative_vol = cfe_ptr->vol_struct.volstart;
     cfe_ptr->vol_struct.volume_in_domain = cfe_ptr->vol_struct.volstart;
     cfe_ptr->vol_struct.leakage = 0.0;
 }
