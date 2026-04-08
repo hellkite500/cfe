@@ -352,6 +352,11 @@ typedef struct {
     double volend_subsurface   ;
     double volend              ;
     double vol_et_from_retention_depth;
+
+    /* ngen BMI mass balance protocol fields */
+    double cumulative_vol;      /* volstart + volin (ngen::mass_in) */
+    double volume_in_domain;    /* total storage at end of timestep (ngen::mass_stored) */
+    double leakage;             /* future deep-GW / boundary losses (ngen::mass_leaked) */
 } cfe_volbal_struct;
 
 /* output configuration helper structure */
@@ -385,8 +390,9 @@ typedef struct {
     cfe_volbal_struct       volbal;        /* the volume balance struct */
     double timestep_storage_start_m;       /* four per-timestep volume balance measures*/
     double timestep_input_m;
-    double timestep_output_m; 
+    double timestep_output_m;
     double timestep_storage_end_m;
+    double vol_balance_residual_m;  /* cached: volstart + volin - volout - volend */
 } CFE_Model_Context;
 
 #endif
