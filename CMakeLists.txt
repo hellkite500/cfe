@@ -107,10 +107,25 @@ if (NGEN)
     # Make sure these are compiled with this directive
     add_compile_definitions(BMI_ACTIVE)
 
+    set(CFE_CORE_SOURCES
+        ./src/bmi_cfe.c
+        ./src/cfe.c
+        ./src/giuh.c
+        ./src/conceptual_reservoir.c
+        ./src/nash_cascade.c
+        ./src/parser_helpers.c
+        ./src/cfe_helpers.c
+        ./src/cfe_context.c
+        ./src/cfe_driver_utils.c
+        ./src/soil_helpers.c
+        ./src/discrete_soil_moisture_stateless.c
+        ./src/cfe_pet_priestley_taylor.c
+    )
+
     if (WIN32)
-        add_library(cfebmi ./src/bmi_cfe.c ./src/cfe.c ./src/giuh.c ./src/conceptual_reservoir.c ./src/nash_cascade.c)
+        add_library(cfebmi ${CFE_CORE_SOURCES})
     else ()
-        add_library(cfebmi SHARED ./src/bmi_cfe.c ./src/cfe.c ./src/giuh.c ./src/conceptual_reservoir.c ./src/nash_cascade.c)
+        add_library(cfebmi SHARED ${CFE_CORE_SOURCES})
     endif ()
 
     # On some platforms, the linker needs to be explicitly told to search for defs for standard C math functions
