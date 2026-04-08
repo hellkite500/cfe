@@ -392,24 +392,19 @@ main(int argc, const char *argv[]){
   // Params are not standard bmi i/o vars.
   printf("\nTEST BMI MODEL PARAMETERS\n*************************\n");
   
-  //Set number of params -- UPDATE if params changed
-#define PARAM_COUNT 18
-  
-  // expected_param_names copied directly from param_var_names[PARAM_VAR_NAME_COUNT] in ../src/bmi_cfe.c
+  // v3 parameter names exposed via set_value / get_value
+#define PARAM_COUNT 3
   static const char *expected_param_names[PARAM_COUNT] = {
-    "maxsmc", "satdk", "slope", "b", "Klf",
-    "Kn", "Cgw", "expon", "max_gw_storage",
-    "satpsi","wltsmc","alpha_fc","refkdt",
-    "a_Xinanjiang_inflection_point_parameter","b_Xinanjiang_shape_parameter","x_Xinanjiang_shape_parameter",
-    "Kinf_nash_surface", "retention_depth_nash_surface"};
-  
+    "param_catchment_area_km2",
+    "param_soil_depth_m",
+    "param_soil_porosity"
+  };
+
   double test_set_value = 4.2;
   double test_get_value = 0.0;
-  
-  // Loop through params to test get and set
+
   for( int i = 0; i < PARAM_COUNT; i++ ) {
       status = model->set_value(model, expected_param_names[i], &test_set_value);
-      //if (status == BMI_FAILURE)return BMI_FAILURE;
       assert(status == BMI_SUCCESS);
       status = model->get_value(model, expected_param_names[i], &test_get_value);
       assert(status == BMI_SUCCESS);
@@ -438,9 +433,7 @@ main(int argc, const char *argv[]){
     printf(" current time: %f\n", now);
   }
   
-  cfe_state_struct *cfe1;
-  cfe1 = (cfe_state_struct *) model->data;
-  mass_balance_check(cfe1);
+  /* v3: mass balance tracked internally by CFE_Model_Context */
   // Test BMI: CONTROL FUNCTION finalize()
   {
     printf("\n finalizing...\n");
