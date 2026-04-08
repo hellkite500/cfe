@@ -406,6 +406,12 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
             config->verbosity = atoi(value);
             yes_has_verbosity = TRUE;
         }
+        // v2-only keys accepted for backward compatibility
+        else if (string_compare_ignore_case(key, "soil_params.expon") == 0 ||
+                 string_compare_ignore_case(key, "soil_params.expon_secondary") == 0 ||
+                 string_compare_ignore_case(key, "nsubsteps_nash_surface") == 0) {
+            // Silently accepted — v2 reservoir exponents and Nash sub-stepping
+        }
         else {
             fprintf(stderr, "WARNING: Unknown legacy keyword: %s\n", key);
             errors++;

@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "cfe_bmi.h"
+#include "bmi_cfe.h"
 #include "cfe_driver_utils.h"
 #include "cfe_pet_priestley_taylor.h"
 
@@ -59,11 +59,12 @@ int main(int argc, char* argv[])
     }
 
     // Initialize BMI model
-    Bmi* model = register_bmi_cfe();
+    Bmi* model = (Bmi*)malloc(sizeof(Bmi));
     if (model == NULL) {
-        fprintf(stderr, "ERROR: Failed to register BMI CFE model\n");
+        fprintf(stderr, "ERROR: Failed to allocate Bmi struct\n");
         return 1;
     }
+    register_bmi_cfe(model);
 
     // Initialize the model with config file
     if (model->initialize(model, cmdline_args.cfg_path) != BMI_SUCCESS) {
@@ -498,7 +499,7 @@ static void write_outputs_from_bmi(int timestep, double catchment_area_km2, doub
     }
 
     if (Q_fptr) {
-        // Convert discharge from m/timestep to m³/s
+        // Convert discharge from m/timestep to mï¿½/s
         double discharge_m3_per_sec = qout_m * catchment_area_km2 * 1.0e+06 / dt_seconds;
         fprintf(Q_fptr, "%d%s", timestep, delimiter);
         fprintf(Q_fptr, format, discharge_m3_per_sec);
