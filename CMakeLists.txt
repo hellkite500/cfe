@@ -214,6 +214,39 @@ if (NGEN)
     # End test_bmi_model tests
     ####################################################################################################################
 
+    ####################################################################################################################
+    # CFE BMI driver executable (used by integration tests)
+    add_executable(cfe_bmi_driver ./src/cfe_bmi_driver.c)
+    target_include_directories(cfe_bmi_driver PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_link_libraries(cfe_bmi_driver cfebmi)
+
+    ####################################################################################################################
+    # Integration tests: run driver with golden configs and compare numerical output
+    set(INTEGRATION_TEST_SCRIPT ${PROJECT_SOURCE_DIR}/test/run_integration_test.sh)
+    set(FORCING_FILE ${PROJECT_SOURCE_DIR}/forcings/cat87_01Dec2015.csv)
+
+    add_test(NAME integration_v2_legacy
+        COMMAND bash ${INTEGRATION_TEST_SCRIPT}
+            $<TARGET_FILE:cfe_bmi_driver>
+            ${PROJECT_SOURCE_DIR}/configs/legacy_cfe_config_cat87.cf2
+            ${FORCING_FILE}
+            ${PROJECT_SOURCE_DIR}/test/golden/v2
+            1e-10
+    )
+    set_tests_properties(integration_v2_legacy PROPERTIES LABELS "integration")
+
+    add_test(NAME integration_v3_dsbm
+        COMMAND bash ${INTEGRATION_TEST_SCRIPT}
+            $<TARGET_FILE:cfe_bmi_driver>
+            ${PROJECT_SOURCE_DIR}/configs/bmi_config_cat87_v3.cf3
+            ${FORCING_FILE}
+            ${PROJECT_SOURCE_DIR}/test/golden/v3
+            1e-10
+    )
+    set_tests_properties(integration_v3_dsbm PROPERTIES LABELS "integration")
+    # End integration tests
+    ####################################################################################################################
+
     include(GNUInstallDirs)
 
     install(TARGETS cfebmi
