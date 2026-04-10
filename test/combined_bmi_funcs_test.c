@@ -392,24 +392,58 @@ main(int argc, const char *argv[]){
   // Params are not standard bmi i/o vars.
   printf("\nTEST BMI MODEL PARAMETERS\n*************************\n");
   
-  // v3 parameter names exposed via set_value / get_value
-#define PARAM_COUNT 3
+  // v3 calibration parameter names exposed via set_value / get_value / get_value_ptr
+  // These match the param_var_names[] array in bmi_cfe.c
+#define PARAM_COUNT 20
   static const char *expected_param_names[PARAM_COUNT] = {
-    "param_catchment_area_km2",
-    "param_soil_depth_m",
-    "param_soil_porosity"
+    "soil_effective_porosity",
+    "soil_saturated_hydraulic_conductivity",
+    "soil_percolation_rate_limiter",
+    "soil_Clapp_Hornberger_b",
+    "soil_lateral_flow_K",
+    "subsurface_nash_K",
+    "gw_discharge_coefficient",
+    "gw_discharge_exponent",
+    "gw_max_storage_m",
+    "soil_saturated_capillary_head",
+    "soil_wilting_point",
+    "soil_field_capacity_fraction",
+    "refkdt",
+    "Xinanjiang_inflection_a",
+    "Xinanjiang_shape_b",
+    "Xinanjiang_shape_x",
+    "surface_nash_Kinf",
+    "surface_nash_retention_depth_m",
+    "Priestley_Taylor_alpha",
+    "soil_ice_imperv_threshold"
   };
 
   double test_set_value = 4.2;
   double test_get_value = 0.0;
 
   for( int i = 0; i < PARAM_COUNT; i++ ) {
+      // 1) set_value → get_value round-trip
+      test_set_value = 4.2 + i;  // unique value per parameter
       status = model->set_value(model, expected_param_names[i], &test_set_value);
       assert(status == BMI_SUCCESS);
       status = model->get_value(model, expected_param_names[i], &test_get_value);
       assert(status == BMI_SUCCESS);
       assert(test_set_value == test_get_value);
-      printf(" get & set values match for parameter: %s \n", expected_param_names[i]);
+
+      // 2) get_value_ptr → verify pointer reads the same value
+      double *param_ptr = NULL;
+      status = model->get_value_ptr(model, expected_param_names[i], (void**)&param_ptr);
+      assert(status == BMI_SUCCESS);
+      assert(param_ptr != NULL);
+      assert(*param_ptr == test_set_value);
+
+      // 3) write through pointer → verify get_value reflects change
+      *param_ptr = 7.7 + i;
+      status = model->get_value(model, expected_param_names[i], &test_get_value);
+      assert(status == BMI_SUCCESS);
+      assert(test_get_value == 7.7 + i);
+
+      printf(" get_value, set_value, get_value_ptr all consistent for: %s \n", expected_param_names[i]);
   }
   
   // Test BMI: CONTROL FUNCTION update_until()

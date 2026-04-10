@@ -79,6 +79,81 @@ static const char* output_var_names[] = {
 };
 static const int OUTPUT_VAR_NAME_COUNT = 21;
 
+/* --- calibration parameters (get_value / set_value / get_value_ptr) --- */
+/* v3 canonical names are listed first; v2 aliases in comments */
+static const char* param_var_names[] = {
+    "soil_effective_porosity",                   /*  0  v2: maxsmc */
+    "soil_saturated_hydraulic_conductivity",     /*  1  v2: satdk — m/s */
+    "soil_percolation_rate_limiter",             /*  2  v2: slope — 0-1 */
+    "soil_Clapp_Hornberger_b",                  /*  3  v2: b */
+    "soil_lateral_flow_K",                       /*  4  v2: Klf — per h */
+    "subsurface_nash_K",                         /*  5  v2: Kn — per h */
+    "gw_discharge_coefficient",                  /*  6  v2: Cgw — m/s */
+    "gw_discharge_exponent",                     /*  7  v2: expon */
+    "gw_max_storage_m",                          /*  8  v2: max_gw_storage */
+    "soil_saturated_capillary_head",             /*  9  v2: satpsi — m */
+    "soil_wilting_point",                        /* 10  v2: wltsmc */
+    "soil_field_capacity_fraction",              /* 11  v2: alpha_fc — Pcap/Patm */
+    "refkdt",                                   /* 12  v2: refkdt */
+    "Xinanjiang_inflection_a",                   /* 13  v2: a_Xinanjiang_inflection_point_parameter */
+    "Xinanjiang_shape_b",                        /* 14  v2: b_Xinanjiang_shape_parameter */
+    "Xinanjiang_shape_x",                        /* 15  v2: x_Xinanjiang_shape_parameter */
+    "surface_nash_Kinf",                         /* 16  v2: Kinf_nash_surface — per h */
+    "surface_nash_retention_depth_m",            /* 17  v2: retention_depth_nash_surface */
+    "Priestley_Taylor_alpha",                    /* 18  (new in v3) */
+    "soil_ice_imperv_threshold"                  /* 19  (new in v3) */
+};
+static const int PARAM_VAR_NAME_COUNT = 20;
+
+/* Resolve a parameter name (v3 or v2 alias) to a pointer into ctx->parameters.
+ * Returns NULL if unrecognized. */
+static double* param_field_ptr(CFE_Model_Context *ctx, const char *name) {
+    cfe_parameters_struct *p = &ctx->parameters;
+
+    if (strcmp(name, "soil_effective_porosity") == 0               || strcmp(name, "maxsmc") == 0)
+        return &p->effective_porosity;
+    if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0 || strcmp(name, "satdk") == 0)
+        return &p->ksat_m_per_s;
+    if (strcmp(name, "soil_percolation_rate_limiter") == 0         || strcmp(name, "slope") == 0)
+        return &p->soil_to_gw_percolation_rate_limiter_0_1;
+    if (strcmp(name, "soil_Clapp_Hornberger_b") == 0              || strcmp(name, "b") == 0)
+        return &p->soil_b;
+    if (strcmp(name, "soil_lateral_flow_K") == 0                   || strcmp(name, "Klf") == 0)
+        return &p->soil_k_lateral_per_h;
+    if (strcmp(name, "subsurface_nash_K") == 0                     || strcmp(name, "Kn") == 0)
+        return &p->nash_subsurface_K_per_h;
+    if (strcmp(name, "gw_discharge_coefficient") == 0              || strcmp(name, "Cgw") == 0)
+        return &p->gw_discharge_coeff_m_per_s;
+    if (strcmp(name, "gw_discharge_exponent") == 0                 || strcmp(name, "expon") == 0)
+        return &p->gw_discharge_exponent;
+    if (strcmp(name, "gw_max_storage_m") == 0                      || strcmp(name, "max_gw_storage") == 0)
+        return &p->gw_max_storage_m;
+    if (strcmp(name, "soil_saturated_capillary_head") == 0         || strcmp(name, "satpsi") == 0)
+        return &p->sat_capillary_head_m;
+    if (strcmp(name, "soil_wilting_point") == 0                    || strcmp(name, "wltsmc") == 0)
+        return &p->wilting_point;
+    if (strcmp(name, "soil_field_capacity_fraction") == 0          || strcmp(name, "alpha_fc") == 0)
+        return &p->field_capacity_Pcap_over_Patm;
+    if (strcmp(name, "refkdt") == 0)
+        return &p->refkdt;
+    if (strcmp(name, "Xinanjiang_inflection_a") == 0               || strcmp(name, "a_Xinanjiang_inflection_point_parameter") == 0)
+        return &p->xj_tension_inflection_0_1;
+    if (strcmp(name, "Xinanjiang_shape_b") == 0                    || strcmp(name, "b_Xinanjiang_shape_parameter") == 0)
+        return &p->xj_tension_b;
+    if (strcmp(name, "Xinanjiang_shape_x") == 0                    || strcmp(name, "x_Xinanjiang_shape_parameter") == 0)
+        return &p->xj_free_b;
+    if (strcmp(name, "surface_nash_Kinf") == 0                     || strcmp(name, "Kinf_nash_surface") == 0)
+        return &p->surface_Kinf_per_h;
+    if (strcmp(name, "surface_nash_retention_depth_m") == 0        || strcmp(name, "retention_depth_nash_surface") == 0)
+        return &p->surface_retention_depth_m;
+    if (strcmp(name, "Priestley_Taylor_alpha") == 0                || strcmp(name, "alpha_pt") == 0)
+        return &p->alpha_pt;
+    if (strcmp(name, "soil_ice_imperv_threshold") == 0)
+        return &p->soil_ice_imperv_threshold;
+
+    return NULL;
+}
+
 /* ================================================================== */
 /*  Lifecycle: Initialize / Update / Finalize                          */
 /* ================================================================== */
@@ -183,14 +258,23 @@ static int Get_var_type(Bmi *self, const char *name, char *type) {
         strcmp(name, "state_current_timestep") == 0 ||
         strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
         strcpy(type, "int");
+        return BMI_SUCCESS;
     }
-    else if (strcmp(name, "forcing_file_path") == 0) {
+    if (strcmp(name, "forcing_file_path") == 0) {
         strcpy(type, "string");
+        return BMI_SUCCESS;
     }
-    else {
+    /* Check output and input variable names (all double) */
+    for (int i = 0; i < OUTPUT_VAR_NAME_COUNT; i++)
+        if (strcmp(name, output_var_names[i]) == 0) { strcpy(type, "double"); return BMI_SUCCESS; }
+    for (int i = 0; i < INPUT_VAR_NAME_COUNT; i++)
+        if (strcmp(name, input_var_names[i]) == 0) { strcpy(type, "double"); return BMI_SUCCESS; }
+    /* Check calibration parameter names (all double) */
+    if (CONTEXT(self) && param_field_ptr(CONTEXT(self), name) != NULL) {
         strcpy(type, "double");
+        return BMI_SUCCESS;
     }
-    return BMI_SUCCESS;
+    return BMI_FAILURE;
 }
 
 static int Get_var_units(Bmi *self, const char *name, char *units) {
@@ -229,6 +313,41 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "forcing_file_path") == 0) {
         strcpy(units, "1");
     }
+    /* --- calibration parameter units ---
+     * Units are the internal representation in cfe_parameters_struct.
+     * These match the units documented in bmi_config_cat87_v3.cf3 and
+     * the unit conversions applied in cfe_helpers.c map_config_to_parameters_and_options().
+     * Note: v2 param names (satdk, Cgw, etc.) resolve to the same fields. */
+    else if (strcmp(name, "soil_effective_porosity") == 0     || strcmp(name, "maxsmc") == 0 ||
+             strcmp(name, "soil_wilting_point") == 0          || strcmp(name, "wltsmc") == 0 ||
+             strcmp(name, "soil_field_capacity_fraction") == 0|| strcmp(name, "alpha_fc") == 0 ||
+             strcmp(name, "soil_percolation_rate_limiter") == 0 || strcmp(name, "slope") == 0 ||
+             strcmp(name, "Xinanjiang_inflection_a") == 0     || strcmp(name, "a_Xinanjiang_inflection_point_parameter") == 0 ||
+             strcmp(name, "soil_ice_imperv_threshold") == 0) {
+        strcpy(units, "-");  /* dimensionless fractions (V/V or 0-1) */
+    }
+    else if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0 || strcmp(name, "satdk") == 0 ||
+             strcmp(name, "gw_discharge_coefficient") == 0               || strcmp(name, "Cgw") == 0) {
+        strcpy(units, "m s-1");  /* stored as m/s in cfe_parameters_struct */
+    }
+    else if (strcmp(name, "soil_lateral_flow_K") == 0        || strcmp(name, "Klf") == 0 ||
+             strcmp(name, "subsurface_nash_K") == 0           || strcmp(name, "Kn") == 0 ||
+             strcmp(name, "surface_nash_Kinf") == 0           || strcmp(name, "Kinf_nash_surface") == 0) {
+        strcpy(units, "h-1");  /* per-hour rate constants */
+    }
+    else if (strcmp(name, "soil_saturated_capillary_head") == 0 || strcmp(name, "satpsi") == 0 ||
+             strcmp(name, "gw_max_storage_m") == 0               || strcmp(name, "max_gw_storage") == 0 ||
+             strcmp(name, "surface_nash_retention_depth_m") == 0  || strcmp(name, "retention_depth_nash_surface") == 0) {
+        strcpy(units, "m");  /* meters */
+    }
+    else if (strcmp(name, "soil_Clapp_Hornberger_b") == 0    || strcmp(name, "b") == 0 ||
+             strcmp(name, "gw_discharge_exponent") == 0       || strcmp(name, "expon") == 0 ||
+             strcmp(name, "Xinanjiang_shape_b") == 0           || strcmp(name, "b_Xinanjiang_shape_parameter") == 0 ||
+             strcmp(name, "Xinanjiang_shape_x") == 0           || strcmp(name, "x_Xinanjiang_shape_parameter") == 0 ||
+             strcmp(name, "refkdt") == 0 ||
+             strcmp(name, "Priestley_Taylor_alpha") == 0       || strcmp(name, "alpha_pt") == 0) {
+        strcpy(units, "-");  /* dimensionless exponents and coefficients */
+    }
     else {
         return BMI_FAILURE;
     }
@@ -245,7 +364,11 @@ static int Get_var_itemsize(Bmi *self, const char *name, int *size) {
         *size = sizeof(char);
     }
     else {
-        *size = sizeof(double);
+        /* all remaining recognized variables (outputs, inputs, params) are double */
+        char type[BMI_MAX_TYPE_NAME];
+        if (Get_var_type(self, name, type) != BMI_SUCCESS) return BMI_FAILURE;
+        if (strcmp(type, "double") == 0) *size = sizeof(double);
+        else return BMI_FAILURE;
     }
     return BMI_SUCCESS;
 }
@@ -278,7 +401,10 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
             *nbytes = 0;
     }
     else {
-        *nbytes = sizeof(double);
+        /* remaining recognized variables (scalar outputs, inputs, params) are single doubles */
+        int itemsize;
+        if (Get_var_itemsize(self, name, &itemsize) != BMI_SUCCESS) return BMI_FAILURE;
+        *nbytes = itemsize;
     }
     return BMI_SUCCESS;
 }
@@ -437,7 +563,10 @@ static int Get_value(Bmi *self, const char *name, void *dest) {
     }
 
     else {
-        return BMI_FAILURE;
+        /* check calibration parameters */
+        double *pp = param_field_ptr(ctx, name);
+        if (pp != NULL) { *d = *pp; }
+        else return BMI_FAILURE;
     }
     return BMI_SUCCESS;
 }
@@ -482,6 +611,13 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "et_potential_m") == 0)    { *dest = &ctx->forcing.et_potential_m;             return BMI_SUCCESS; }
     if (strcmp(name, "verbosity") == 0)         { *dest = &ctx->options.verbosity;                  return BMI_SUCCESS; }
     if (strcmp(name, "forcing_file_path") == 0) { *dest = ctx->options.input_forcing_filename;      return BMI_SUCCESS; }
+
+    /* --- calibration parameters --- */
+    double *pp = param_field_ptr(ctx, name);
+    if(pp != NULL) { 
+        *dest = pp; 
+        return BMI_SUCCESS; 
+    }
 
     return BMI_FAILURE;
 }
@@ -560,19 +696,14 @@ static int Set_value(Bmi *self, const char *name, void *src) {
         ctx->state.current_time_step = *(int*)src;
     }
 
-    /* --- calibration parameters --- */
-    else if (strcmp(name, "param_catchment_area_km2") == 0) {
-        ctx->parameters.catchment_area_km2 = *(double*)src;
-    }
-    else if (strcmp(name, "param_soil_depth_m") == 0) {
-        ctx->parameters.soil_depth_m = *(double*)src;
-    }
-    else if (strcmp(name, "param_soil_porosity") == 0) {
-        ctx->parameters.effective_porosity = *(double*)src;
-    }
-
     else {
-        return BMI_FAILURE;
+        /* calibration parameters — all are double type */
+        double *pp = param_field_ptr(ctx, name);
+        if (pp != NULL) {
+            *pp = *(double*)src;
+        } else {
+            return BMI_FAILURE;
+        }
     }
     return BMI_SUCCESS;
 }
