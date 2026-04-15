@@ -4,8 +4,7 @@ We follow the [Semantic Versioning 2.0.0](http://semver.org/) format.
 
 ## 3.0.0 - 2026-04-09
 
-CFE v3 migration from cfe3-project reference implementation by
-Fred L. Ogden (NOAA/NWS Office of Water Prediction).
+CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office of Water Prediction).
 
 ### Added
 
@@ -121,3 +120,9 @@ Calibration parameters (v2 alias → v3 canonical name):
   floating-point edge cases near storage thresholds.
 - Legacy config parser accepts v2-only keys (`soil_params.expon`,
   `soil_params.expon_secondary`, `nsubsteps_nash_surface`) without error.
+- Double-baseflow drawdown of groundwater reservoir: GW storage was being
+  decremented by the baseflow flux twice per timestep, causing 2× drawdown
+  and a per-step volume balance residual equal to one baseflow value.
+  With the fix, the ngen mass balance protocol identity
+  (`mass_in = mass_out + mass_stored + mass_leaked`) holds to within
+  machine epsilon (~1e-16).

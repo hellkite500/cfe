@@ -532,10 +532,6 @@ gw_reservoir_struct->storage_m -= flux_from_deep_gw_to_chan_m;
 // === THEN UPDATE VOLUME BALANCES ===
 volbal_struct->vol_from_gw += flux_from_deep_gw_to_chan_m;
 
-// DON'T subtract baseflow here -- conceptual_reservoir_flux_calc() already did it
-
-volbal_struct->vol_from_gw += flux_from_deep_gw_to_chan_m;
-
 //--------------------------------------------
 // Soil bookkeeping ffor conceptual reservoir
 //--------------------------------------------
@@ -548,11 +544,9 @@ if (!yes_simulate_discrete_soil_moisture) {
 if (is_fabs_less_than_epsilon(secondary_flux, 1.0e-09) == FALSE)
     printf("problem with nonzero flux point 1\n");
 
-  // adjust state of deep groundwater conceptual nonlinear reservoir
-  //-----------------------------------------------------------------
-
-  gw_reservoir_struct->storage_m -= flux_from_deep_gw_to_chan_m;
-
+  // GW storage already adjusted above (line 530); this duplicate
+  // subtraction was removed because it caused a 2x baseflow drawdown
+  // and broke the volume balance protocol.
 
   if (surface_runoff_scheme == SURF_ROUTE_GIUH) {  // Solve the convolution integral ffor this time step
     flux_direct_runoff_to_channel_m = giuh_convolution_integral(flux_surface_runoff_input_to_surface_routing_m, 
