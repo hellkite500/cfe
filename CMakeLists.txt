@@ -142,6 +142,7 @@ add_test(NAME test_set_value_at_indices_1 COMMAND test_bmi_model test_set_value_
 add_test(NAME test_get_value_1 COMMAND test_bmi_model test_get_value)
 add_test(NAME test_get_value_at_indices_1 COMMAND test_bmi_model test_get_value_at_indices)
 add_test(NAME test_get_value_ptr_1 COMMAND test_bmi_model test_get_value_ptr)
+add_test(NAME test_mass_balance_protocol_1 COMMAND test_bmi_model test_mass_balance_protocol)
 
 # These are effectively not implemented, but they should strictly speaking be implemented and return a failure code
 add_test(NAME test_get_grid_edge_count_1 COMMAND test_bmi_model test_get_grid_edge_count)

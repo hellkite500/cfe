@@ -54,7 +54,7 @@ void cfe_context_destroy(CFE_Model_Context* ctx)
 }
 
 //################################### <- helper function needed in context_update()
-static double calculate_total_storage(const CFE_Model_Context* ctx) {
+double calculate_total_storage(const CFE_Model_Context* ctx) {
     double total = ctx->state.gw_storage_m;
     
     if (ctx->options.simulate_discrete_soil_moisture) {

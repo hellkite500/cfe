@@ -1,7 +1,93 @@
+#include <math.h>
 #include "general_test_utils.h"
 #include "bmi_test_utils.h"
 #include "bmi_cfe.h"
 #include "cfe.h"
+#include "ngen_utilities.h"
+
+/*
+ * test_mass_balance_protocol
+ *
+ * Run the model for several timesteps with known forcing and verify the
+ * ngen mass balance protocol identity:
+ *   mass_in = mass_out + mass_stored + mass_leaked
+ *
+ * mass_in starts at initial total storage and accumulates rainfall.
+ * mass_stored is total storage at end of last step.
+ * mass_out is cumulative discharge + ET.
+ * mass_leaked is 0 (no deep losses modeled).
+ */
+int test_mass_balance_protocol(TestFixture* fixture)
+{
+    int bmi_status;
+    Bmi *m = fixture->bmi_model;
+
+    bmi_status = m->initialize(m, fixture->cfg_file);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize for mass balance test");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* obtain pointers to the four protocol variables */
+    double *mass_in = NULL, *mass_out = NULL, *mass_stored = NULL, *mass_leaked = NULL;
+    bmi_status  = m->get_value_ptr(m, NGEN_MASS_IN,     (void**)&mass_in);
+    bmi_status |= m->get_value_ptr(m, NGEN_MASS_OUT,    (void**)&mass_out);
+    bmi_status |= m->get_value_ptr(m, NGEN_MASS_STORED, (void**)&mass_stored);
+    bmi_status |= m->get_value_ptr(m, NGEN_MASS_LEAKED, (void**)&mass_leaked);
+    if (bmi_status != BMI_SUCCESS || !mass_in || !mass_out || !mass_stored || !mass_leaked) {
+        printf("\nFailed to get mass balance protocol pointers");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* run 5 timesteps with rainfall, then 5 dry timesteps */
+    double rain_m = 0.005;   /* 5 mm per timestep */
+    double no_rain = 0.0;
+    double pet_m = 0.0;
+
+    for (int t = 0; t < 10; t++) {
+        double r = (t < 5) ? rain_m : no_rain;
+        m->set_value(m, "rainfall_depth_m", &r);
+        m->set_value(m, "et_potential_m", &pet_m);
+        bmi_status = m->update(m);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nUpdate failed at step %d", t);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* check protocol values are physically reasonable */
+    if (*mass_in <= 0.0) {
+        printf("\nmass_in should be > 0 (got %.6e)", *mass_in);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    if (*mass_out < 0.0) {
+        printf("\nmass_out should be >= 0 (got %.6e)", *mass_out);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    if (*mass_stored <= 0.0) {
+        printf("\nmass_stored should be > 0 (got %.6e)", *mass_stored);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    if (*mass_leaked < 0.0) {
+        printf("\nmass_leaked should be >= 0 (got %.6e)", *mass_leaked);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* conservation: mass_in = mass_out + mass_stored + mass_leaked */
+    double residual = *mass_in - *mass_out - *mass_stored - *mass_leaked;
+    double tol = 1.0e-12;  /* near double precision */
+    if (fabs(residual) > tol) {
+        printf("\nmass balance residual %.6e exceeds tolerance %.1e", residual, tol);
+        printf("\n  mass_in=%.15e  mass_out=%.15e  mass_stored=%.15e  mass_leaked=%.15e",
+               *mass_in, *mass_out, *mass_stored, *mass_leaked);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    printf("\n  mass_in=%.6e  out=%.6e  stored=%.6e  leaked=%.6e  residual=%.2e",
+           *mass_in, *mass_out, *mass_stored, *mass_leaked, residual);
+
+    return TEST_RETURN_CODE_PASS;
+}
 
 int test_finalize(TestFixture* fixture)
 {
@@ -1349,6 +1435,8 @@ int main(int argc, const char* argv[])
         result = test_get_value_at_indices(fixture);
     else if (strcmp(argv[1], "test_get_value_ptr") == 0)
         result = test_get_value_ptr(fixture);
+    else if (strcmp(argv[1], "test_mass_balance_protocol") == 0)
+        result = test_mass_balance_protocol(fixture);
     else if (strcmp(argv[1], "test_get_var_grid") == 0)
         result = test_get_var_grid(fixture);
     else if (strcmp(argv[1], "test_get_var_itemsize") == 0)

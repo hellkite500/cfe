@@ -166,6 +166,14 @@ static int Initialize(Bmi *self, const char *cfg_file) {
     if (result != 0 || ctx == NULL) return BMI_FAILURE;
 
     self->data = (void*)ctx;
+
+    /* initial ngen mass balance: cumulative_vol starts at initial total storage
+     * so that mass_in always represents total mass in the domain */
+    double init_storage = calculate_total_storage(ctx);
+    ctx->volbal.cumulative_vol   = init_storage;
+    ctx->volbal.volume_in_domain = init_storage;
+    ctx->volbal.leakage          = 0.0;
+
     return BMI_SUCCESS;
 }
 
@@ -175,6 +183,11 @@ static int Update(Bmi *self) {
     CFE_Model_Context *ctx = CONTEXT(self);
     int result = cfe_context_update(ctx);
     if (result != 0) return BMI_FAILURE;
+
+    /* update ngen mass balance protocol fields */
+    ctx->volbal.cumulative_vol += ctx->forcing.rainfall_depth_m;  /* accumulate total input */
+    ctx->volbal.volume_in_domain = ctx->timestep_storage_end_m;   /* total storage at end of step */
+    /* ctx->volbal.leakage stays 0 — no deep losses modeled */
 
     /* cache the volume balance residual for get_value_ptr */
     ctx->vol_balance_residual_m = ctx->volbal.volstart + ctx->volbal.volin

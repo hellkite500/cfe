@@ -33,4 +33,7 @@ int cfe_context_get_outputs(const CFE_Model_Context* ctx, cfe_outputs_struct* ou
 int cfe_context_get_time_step_seconds(const CFE_Model_Context* ctx, int* out_dt_s);
 int cfe_context_get_current_step(const CFE_Model_Context* ctx, int* out_step);
 
+/* Sum all storage compartments (soil + gw + routing) */
+double calculate_total_storage(const CFE_Model_Context* ctx);
+
 #endif
