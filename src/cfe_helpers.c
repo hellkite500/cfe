@@ -537,8 +537,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     } else if (equals_ic(part, "Schaake")) {
         o->liquid_partitioning_scheme = PARTITION_SCHAAKE;
     } else {
-        // default
-        o->liquid_partitioning_scheme = PARTITION_SCHAAKE;
+        fprintf(stderr, "ERROR: Unrecognized partitioning scheme '%s' (expected 'Schaake' or 'Xinanjiang')\n", part);
+        return -1;
     }
 
     // Surface routing
@@ -552,7 +552,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     } else if (equals_ic(surf, "GIUH")) {
         o->surface_routing_scheme = SURF_ROUTE_GIUH;
     } else {
-        o->surface_routing_scheme = SURF_ROUTE_GIUH;  // default
+        fprintf(stderr, "ERROR: Unrecognized surface routing scheme '%s' (expected 'GIUH' or 'NASH_CASCADE')\n", surf);
+        return -1;
     }
 
 
