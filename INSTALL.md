@@ -60,6 +60,12 @@ ctest --test-dir build --output-on-failure
 The `cfe_bmi_driver` executable reads a config file and forcing data, runs
 the model through the BMI interface, and writes output files.
 
+> **Note:** Output directories are not created automatically. Create them
+> before running the driver:
+> ```bash
+> mkdir -p output
+> ```
+
 ### With v2 legacy config
 ```bash
 build/cfe_bmi_driver \

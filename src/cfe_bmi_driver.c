@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
     if (cmdline_args.qout_path) {
         q_fptr = fopen(cmdline_args.qout_path, "w");
         if (!q_fptr) {
-            fprintf(stderr, "ERROR: Cannot open discharge output file: %s\n", cmdline_args.qout_path);
+            fprintf(stderr, "ERROR: Cannot open discharge output file: %s (does the output directory exist?)\n", cmdline_args.qout_path);
             close_output_files(NULL, NULL, NULL, NULL, NULL, NULL, NULL, forcing_fptr);
             delete_bmi_cfe(model);
             return 1;
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
     if (cmdline_args.volbal_path) {
         volbal_fptr = fopen(cmdline_args.volbal_path, "w");
         if (!volbal_fptr) {
-            fprintf(stderr, "ERROR: Cannot open volume balance output file: %s\n", cmdline_args.volbal_path);
+            fprintf(stderr, "ERROR: Cannot open volume balance output file: %s (does the output directory exist?)\n", cmdline_args.volbal_path);
             close_output_files(q_fptr, Q_fptr, fluxes_fptr, storages_fptr, NULL, theta_fptr, warnings_fptr, forcing_fptr);
             delete_bmi_cfe(model);
             return 1;
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
     if (cmdline_args.fluxes_path) {
         fluxes_fptr = fopen(cmdline_args.fluxes_path, "w");
         if (!fluxes_fptr) {
-            fprintf(stderr, "ERROR: Cannot open fluxes output file: %s\n", cmdline_args.fluxes_path);
+            fprintf(stderr, "ERROR: Cannot open fluxes output file: %s (does the output directory exist?)\n", cmdline_args.fluxes_path);
             close_output_files(q_fptr, Q_fptr, NULL, storages_fptr, volbal_fptr, theta_fptr, warnings_fptr, forcing_fptr);
             delete_bmi_cfe(model);
             return 1;
@@ -216,7 +216,7 @@ int main(int argc, char* argv[])
     if (cmdline_args.stores_path) {
         storages_fptr = fopen(cmdline_args.stores_path, "w");
         if (!storages_fptr) {
-            fprintf(stderr, "ERROR: Cannot open storages output file: %s\n", cmdline_args.stores_path);
+            fprintf(stderr, "ERROR: Cannot open storages output file: %s (does the output directory exist?)\n", cmdline_args.stores_path);
             close_output_files(q_fptr, Q_fptr, fluxes_fptr, NULL, volbal_fptr, theta_fptr, warnings_fptr, forcing_fptr);
             delete_bmi_cfe(model);
             return 1;
@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
         } else {
             theta_fptr = fopen(cmdline_args.thetas_path, "w");
             if (!theta_fptr) {
-                fprintf(stderr, "ERROR: Cannot open theta output file: %s\n", cmdline_args.thetas_path);
+                fprintf(stderr, "ERROR: Cannot open theta output file: %s (does the output directory exist?)\n", cmdline_args.thetas_path);
                 close_output_files(q_fptr, Q_fptr, fluxes_fptr, storages_fptr, volbal_fptr, NULL, warnings_fptr, forcing_fptr);
                 delete_bmi_cfe(model);
                 return 1;
