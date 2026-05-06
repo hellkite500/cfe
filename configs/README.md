@@ -1,89 +1,103 @@
-## Configuration File
-Example configuration files are provided in this directory. To build and run the given examples see the instructions [here](https://github.com/NOAA-OWP/cfe/blob/master/INSTALL.md). A detailed description of the parameters for model configuration (i.e., initialize/setup) is provided below. 
+# CFE Configuration Files
 
+CFE v3 supports two config file formats. Example configurations are provided
+in this directory.
 
-**Key**:
+## Config Formats
 
-<sup>*</sup>: denotes parameter is calibratable
+### Legacy v2 format (`.cf2` / `.txt`)
 
-<sup>1</sup>: denotes the parameters only used when `surface_runoff_scheme` is `NASH_CASCADE`.
+Simple `key=value[units]` format, one parameter per line. Lines starting with
+`#` are comments. Example: `legacy_cfe_config_cat87.cf2`.
 
-| Variable | Datatype |  Limits  | Units | Role | Process | Description |
-| -------- | -------- | ------ | ----- | ---- | ------- | ----------- |
-| forcing_file | *char* | 256  |   | filename |   | path to forcing inputs csv; set to `BMI` if passed via `bmi.set_value*()`  |
-| soil_params.depth | *double* |   | meters [m]| state |  | soil depth  |
-| soil_params.b<sup>*</sup> | *double* |   |   | state |   | beta exponent on Clapp-Hornberger (1978) soil water relations  |
-| soil_params.satdk<sup>*</sup> | *double* |   |  meters/second [m s-1] | state |  | saturated hydraulic conductivity  |
-| soil_params.satpsi<sup>*</sup>  | *double* |   |  meters [m] | state |  | saturated capillary head  |
-| soil_params.slop<sup>*</sup>   | *double* |   |  meters/meters [m/m]| state |  | this factor (0-1) modifies the gradient of the hydraulic head at the soil bottom.  0=no-flow. |
-| soil_params.smcmax<sup>*</sup>  | *double* |   |  meters/meters [m/m] | state |  | saturated soil moisture content  |
-| soil_params.wltsmc | *double* |   |  meters/meters [m/m] | state |   | wilting point soil moisture content  |
-| soil_params.expon  | *double* |   |  | parameter_adjustable |    | optional; defaults to `1.0`  |
-| soil_params.expon_secondary  | *double* |  |   | parameter_adjustable |  | optional; defaults to `1.0` |
-| max_gw_storage<sup>*</sup> | *double* |   |  meters [m] | parameter_adjustable |  | maximum storage in the conceptual reservoir |
-| Cgw<sup>*</sup> | *double* |   |  meters/hour [m h-1] | parameter_adjustable |  | the primary outlet coefficient |
-| expon<sup>*</sup> | *double* |   |   | parameter_adjustable |  | exponent parameter (1.0 for linear reservoir) |
-| gw_storage | *double* |   |  meters/meters [m/m] | parameter_adjustable |  | initial condition for groundwater reservoir - it is the ground water as a decimal fraction of the maximum groundwater storage (max_gw_storage) for the initial timestep |
-| alpha_fc | *double* |   |   | parameter_adjustable |  | field capacity |
-| soil_storage| *double* |   | meters/meters [m/m] | parameter_adjustable |  | initial condition for soil reservoir - it is the water in the soil as a decimal fraction of maximum soil water storage (smcmax * depth) for the initial timestep |
-| N_nash_subsurface | *int* |   |   | parameter_adjustable |   | number of Nash lf reservoirs (optional, defaults to 2, ignored if storage values present)  |
-| K_nash_subsurface | *double* |   | 1/meters [m^-1]  | parameter_adjustable | subsurface runoff | Nash Config param for lateral subsurface runoff   |
-| K_lf<sup>*</sup>  | *double* |   |   | parameter_adjustable |  | Nash Config param - primary reservoir  |
-| nash_storage_subsurface | 1D array (*double*) |   |   | parameter_adjustable |  | Nash Config param - secondary reservoir   |
-| giuh_ordinates   | 1D array (*double*) |   |   | parameter_adjustable |  | Giuh ordinates in dt time steps   |
-| num_timesteps  | *int* |   |  | time_info |  | set to `1` if `forcing_file=BMI`   |
-| verbosity | *int* | `0`-`3`  |   | optional |   |  prints various debug and bmi info (defaults to 0) |
-| surface_water_partitioning_scheme | *char* | `Xinanjiang` or `Schaake`  |  | parameter_adjustable | infiltraton excess |    |
-| surface_runoff_scheme | *char* | GIUH or NASH_CASCADE | | parameter_adjustable | surface runoff | also supports 1 for GIUH and 2 for NASH_CASCADE; default is GIUH |
-| N_nash_surface<sup>1</sup> | *int* |   |   | parameter_adjustable | surface runoff | number of Nash reservoirs for surface runoff   |
-| K_nash_surface<sup>1</sup> | *double* |   | 1/hour [h^-1]  | parameter_adjustable | surface runoff | Nash Config param for surface runoff   |
-| nash_storage_surface<sup>1</sup> | 1D array (*double*) |   | meters [m]  | parameter_adjustable | surface runoff | Nash Config param; reservoir surface storage; default is zero storage |
-| nsubsteps_nash_surface<sup>1</sup> | *int* |   |   | parameter_adjustable | surface runoff | optional (default = 10); number of subtimstep for Nash runoff |
-| Kinf_nash_surface<sup>*,1</sup> | *double* |   | 1/hour [h^-1] | parameter_adjustable | surface runoff | optional (default = 0.001); storage fraction per hour that moves from reservoirs to soil |
-| retention_depth_nash_surface<sup>*,1</sup> | *double* |   | m | parameter_adjustable | surface runoff | optional (default = 0.001); water retention depth threshold (only applied to the first reservoir) |
-| a_Xinanjiang_inflection_point_parameter<sup>*</sup> | *double* |   |  | parameter_adjustable | infiltration excess runoff | when `surface_water_partitioning_scheme=Xinanjiang`   |
-| b_Xinanjiang_shape_parameter<sup>*</sup>  | *double* |   |   | parameter_adjustable  | infiltration excess runoff | when `surface_water_partitioning_scheme=Xinanjiang`   |
-| x_Xinanjiang_shape_parameter<sup>*</sup>  | *double* |   |   | parameter_adjustable | infiltration excess runoff | when `surface_water_partitioning_scheme=Xinanjiang`   |
-| urban_decimal_fraction  | *double*  |  0.0 - 1.0 |   |  parameter_adjustable | infiltration excess runoff | when `surface_water_partitioning_scheme=Xinanjiang` |
-| is_aet_rootzone                    | *boolean* | True, true or 1  |  | coupling parameter | `rootzone-based AET` | when `CFE coupled to SoilMoistureProfile` |
-| max_rootzone_layer | *double* |  | meters [m] | parameter_adjustable | AET | layer of the soil that is the maximum root zone depth. That is, the depth of the layer where the AET is drawn from |
-| soil_layer_depths | 1D array (*double*) |  | meters [m] | parameter_adjustable | AET | an array of depths from the surface. Example, soil_layer_depths=0.1,0.4,1.0,2.0
-| is_sft_coupled                   | *boolean* | True, true or 1  |  | coupling parameter | `ice_fraction-based runoff` | when `CFE coupled to SoilFreezeThaw`|
+### v3 keyword format (`.cf3`)
 
-## Infiltration excess runoff options in CFE
+Extended `keyword=arg(s) [units]` format with `#` and `//` comments, richer
+keyword names, and support for v3 features (DSBM, Priestley-Taylor PET,
+output configuration). Example: `bmi_config_cat87_v3.cf3`.
 
-The user has the option to pick a particular infiltration excess runoff (aka surface water partitioning) method:
+See `clean_config.cf3` for a fully annotated template of all v3 options.
 
-1. Schaake function (configuration: `surface_water_partitioning_scheme=Schaake`)
-2. Xinanjiang function (configuration: `surface_water_partitioning_scheme=Xinanjiang`). When using this runoff method the user must also include four parameters.
+## Example Configs
 
-If the **Xinanjiang** scheme is choosen, four parameters need to be included in the configuration file:
-1. a_Xinanjiang_inflection_point_parameter
-2. b_Xinanjiang_shape_parameter
-3. x_Xinanjiang_shape_parameter
-4. urban_decimal_fraction
+| File | Format | Partitioning | Routing | Soil | Notes |
+|------|--------|-------------|---------|------|-------|
+| `cfe_config_cat_87_pass.txt` | v2 | Schaake | Nash Cascade | Linear reservoir | Used by unit tests |
+| `legacy_cfe_config_cat87.cf2` | v2 | Xinanjiang | Nash Cascade | Linear reservoir | Used by integration test |
+| `bmi_config_cat87_v3.cf3` | v3 | Schaake | GIUH | DSBM (4-layer) | Used by integration test |
+| `cfe_config_cat87_v3.cf3` | v3 | Schaake | GIUH | DSBM (4-layer) | Standalone driver config |
+| `clean_config.cf3` | v3 | — | — | — | Annotated template |
 
-## Surface runoff options in CFE
-The user has the option to pick a particular surface runoff (aka surface runoff scheme) method:
+## Parameter Reference
 
-1. GIUH-based surface runoff (configuration: `surface_runoff_scheme=GIUH`). This is the default option.
-2. Nash_Cascade-based surface runoff (configuration: `surface_runoff_scheme=NASH_CASCADE`). In this method, GIUH is used to derive Nash cascade parameters K and N.
+Parameters marked with <sup>\*</sup> are calibratable via BMI `set_value` /
+`get_value_ptr`. The v3 BMI canonical name and v2 config key are shown;
+see `CHANGELOG.md` for the full v2→v3 name mapping.
 
+### Soil Parameters
 
-## Rootzone-based Actual Evapotranspiration (AET)
-The user has the option to turn ON and OFF rootzone-based AET, default option is OFF. To turn it ON, the following parameters need to be included in the configuration file.
-1. `is_aet_rootzone=true`
-2. `soil_layer_depths`
-3. `max_rootzone_layer`
+| v2 Config Key | v3 Config Key | BMI Name | Units | Description |
+|--------------|--------------|----------|-------|-------------|
+| `soil_params.depth` | `soil_depth_m` | `param_soil_depth_m` | m | Soil column depth |
+| `soil_params.b`<sup>\*</sup> | `soil_Clapp_Hornberger_exponent_b` | `soil_Clapp_Hornberger_b` | - | Clapp-Hornberger exponent |
+| `soil_params.satdk`<sup>\*</sup> | `soil_sat_hydraulic_conductivity_cm_per_h` | `soil_saturated_hydraulic_conductivity` | m s-1 (internal) | Saturated hydraulic conductivity |
+| `soil_params.satpsi`<sup>\*</sup> | `soil_sat_capillary_head_cm` | `soil_saturated_capillary_head` | m (internal) | Saturated capillary head |
+| `soil_params.smcmax`<sup>\*</sup> | `soil_effective_porosity` | `soil_effective_porosity` | - | Effective porosity |
+| `soil_params.wltsmc`<sup>\*</sup> | `soil_wilting_point_moisture_content` | `soil_wilting_point` | - | Wilting point |
+| `soil_params.slop`<sup>\*</sup> | `soil_to_gw_percolation_rate_limiter_0_to_1` | `soil_percolation_rate_limiter` | - | Percolation rate limiter (0-1) |
+| `alpha_fc`<sup>\*</sup> | `soil_field_capacity_Pcap_over_Patm_0_1` | `soil_field_capacity_fraction` | - | Field capacity (Pcap/Patm) |
+| `K_lf`<sup>\*</sup> | `soil_reservoir_rate_const_to_subsurface_lateral_flow` | `soil_lateral_flow_K` | h-1 | Lateral flow rate constant |
+| `soil_storage` | `state_soil_reservoir_init_storage_m` | — | m | Initial soil storage |
 
-## CFE coupled to Soil freeze-thaw model (SFT)
-The Soil Freeze-Thaw (SFT) model is a standalone model.  For detailed information please refer to the [SFT repo](https://github.com/NOAA-OWP/SoilFreezeThaw). A few things to note when coupling CFE to SFT:
-1. SFT model provides `ice fraction` to CFE runoff schemes (Schaake `ice_fraction_schaake` and Xinanjiang `ice_fraction_xinanjiang`)
-2. To turn ON/OFF SFT set sft_coupled flag.
-    * `is_sft_coupled` : (type boolean) if `true`, SFT is turned ON. (options: True, true, 1).
-    * If the runoff scheme is Xinanjiang, no additional parameters are needed in the CFE config files.
-    * If the runoff scheme is Schaake, the CFE config file will need an additional parameter, namely:
-      * `ice_content_threshold` : (type double, unit m). This represent the ice content above which soil is impermeable.
+### Groundwater Parameters
 
+| v2 Config Key | v3 Config Key | BMI Name | Units | Description |
+|--------------|--------------|----------|-------|-------------|
+| `max_gw_storage`<sup>\*</sup> | `gw_reservoir_max_storage_m` | `gw_max_storage_m` | m | Maximum GW storage |
+| `Cgw`<sup>\*</sup> | `gw_discharge_coeff_m_per_timestep` | `gw_discharge_coefficient` | m s-1 (internal) | GW discharge coefficient |
+| `expon`<sup>\*</sup> | `gw_discharge_exponent` | `gw_discharge_exponent` | - | GW discharge exponent |
+| `gw_storage` | `state_gw_reservoir_init_storage_m` | — | m | Initial GW storage |
 
-**Note:** By defualt `is_sft_coupled` and `is_aet_rootzone` are set to `OFF`, that means these changes do not affect the basic functionality of CFE.
+### Surface Routing Parameters
+
+| v2 Config Key | v3 Config Key | BMI Name | Units | Description |
+|--------------|--------------|----------|-------|-------------|
+| `surface_runoff_scheme` | `surface_routing_scheme_name` | — | — | `GIUH` or `NASH_CASCADE` |
+| `N_nash_surface` | `surface_routing_num_nash_reservoirs` | — | — | Number of Nash reservoirs |
+| `K_nash_surface`<sup>\*</sup> | `surface_routing_nash_reservoir_time_constant_k` | — | h-1 | Nash time constant |
+| `Kinf_nash_surface`<sup>\*</sup> | `surface_nash_cascade_infil_rate_time_const_Kinf` | `surface_nash_Kinf` | h-1 | Runon infiltration rate |
+| `retention_depth_nash_surface`<sup>\*</sup> | `surface_nash_cascade_retention_depth_cm` | `surface_nash_retention_depth_m` | m (internal) | Retention depth |
+
+### Subsurface Routing Parameters
+
+| v2 Config Key | v3 Config Key | BMI Name | Units | Description |
+|--------------|--------------|----------|-------|-------------|
+| `K_nash_subsurface`<sup>\*</sup> | `subsurface_routing_nash_reservoir_time_constant_k` | `subsurface_nash_K` | h-1 | Subsurface Nash time constant |
+
+### Xinanjiang Parameters (when `surface_water_partitioning_scheme=Xinanjiang`)
+
+| v2 Config Key | v3 Config Key | BMI Name | Units |
+|--------------|--------------|----------|-------|
+| `a_Xinanjiang_inflection_point_parameter`<sup>\*</sup> | `partitioning_Xinanjiang_tension_water_inflection_point` | `Xinanjiang_inflection_a` | - |
+| `b_Xinanjiang_shape_parameter`<sup>\*</sup> | `partitioning_Xinanjiang_tension_water_soil_moist_distrib_exponent` | `Xinanjiang_shape_b` | - |
+| `x_Xinanjiang_shape_parameter`<sup>\*</sup> | `partitioning_Xinanjiang_free_water_soil_moist_distrib_exponent` | `Xinanjiang_shape_x` | - |
+
+### v3-Only Parameters
+
+| v3 Config Key | BMI Name | Units | Description |
+|--------------|----------|-------|-------------|
+| `control_ET_simulate_Priestley_Taylor` | `Priestley_Taylor_alpha` | - | P-T alpha coefficient (0 = disabled) |
+| `control_soil_simulate_discrete_soil_moisture_true_false` | — | — | `TRUE` to enable DSBM |
+| `control_soil_use_lookup_table_num_points` | — | — | LUT points (0 = analytic) |
+| `control_ET_deepest_root_zone_discretization` | — | — | Deepest root zone layer (1-4) |
+| `soil_ice_content_impervious_threshold` | `soil_ice_imperv_threshold` | - | Ice fraction threshold |
+
+## Infiltration Excess Runoff Options
+
+1. **Schaake** (`surface_water_partitioning_scheme=Schaake` or `partitioning_scheme_name=SCHAAKE`)
+2. **Xinanjiang** (`surface_water_partitioning_scheme=Xinanjiang` or `partitioning_scheme_name=XINANJIANG`) — requires the three Xinanjiang parameters listed above.
+
+## Surface Runoff Routing Options
+
+1. **GIUH** (`surface_runoff_scheme=GIUH` or `surface_routing_scheme_name=GIUH`) — requires `giuh_ordinates`.
+2. **Nash Cascade** (`surface_runoff_scheme=NASH_CASCADE` or `surface_routing_scheme_name=NASH_CASCADE`) — requires `N_nash_surface` and `K_nash_surface`.

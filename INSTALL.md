@@ -1,152 +1,176 @@
-# Build and Run Instructions
-Detailed instructions on how to build and run CFE in three modes (standalone, pseudo, and nextgen frameworks) are provided below. Building CFE requires [GCC](https://gcc.gnu.org) and [CMAKE](https://cmake.org/) on your machine.
+# CFE v3 — Build, Test, and Run Instructions
 
-## Clone the repository
-```
+Building CFE requires a C compiler (GCC or Clang) and [CMake](https://cmake.org/) >= 3.10.
+
+## Quick Start
+
+```bash
 git clone https://github.com/NOAA-OWP/cfe
 cd cfe
-git submodule update --init
-mkdir build && cd build
+cmake -B build -S .
+cmake --build build
+ctest --test-dir build
 ```
 
-**Notes:**
- - Before running the following examples, it is recommended to run the unittests [tests](https://github.com/NOAA-OWP/cfe/tree/master/test).
- - All build commands are run within the `build` directory, and run commands are executed from the cfe directory.
- 
-## Example 1 (standalone mode)
-CFE reads local forcing data (standalone CFE BMI run), potential ET is not included. The example uses CAMELS catchment-87 data. **Notation:** BASE
-### Build
+This builds the shared library (`libcfebmi`), the BMI driver executable
+(`cfe_bmi_driver`), and all test executables, then runs the full test suite
+(unit tests + integration tests with golden output comparison).
+
+## Build Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `STANDALONE` | `OFF` | Build the standalone non-BMI driver (`cfe_main_driver`) |
+| `NGEN` | `ON` | Accepted for backward compatibility (no effect — always builds) |
+| `CMAKE_BUILD_TYPE` | (none) | Set to `Debug` for debug symbols and verbosity=1 |
+
+Example with standalone driver:
+```bash
+cmake -B build -S . -DSTANDALONE=ON
+cmake --build build
 ```
-cmake ../ -DBASE=ON
-make && cd ..
+
+## Running Tests
+
+### All tests
+```bash
+ctest --test-dir build
 ```
-### Run
-<pre>
-<a href="https://github.com/NOAA-OWP/cfe/blob/master/run_cfe.sh">./run_cfe.sh</a> BASE   
-</pre>
 
-## Example 2 (pseudo framework mode)
-This example couples CFE with AORC. AORC reads the forcing data and passes rain precipitation to CFE using BMI, potential ET is not included. The example uses CAMELS catchment-87 data. **Notation:** FORCING
-### Build
+### Unit tests only
+```bash
+ctest --test-dir build -E integration
 ```
-cmake ../ -DFORCING=ON
-make && cd ..
+
+### Integration tests only
+```bash
+ctest --test-dir build -L integration
 ```
-### Run
-<pre>
-<a href="https://github.com/NOAA-OWP/cfe/blob/master/run_cfe.sh">./run_cfe.sh</a> FORCING
-</pre>
 
-## Example 3 (pseudo framework mode)
-This example couples CFE with AORC and PET. AORC reads the forcing data and passes data to CFE and PET using BMIs. The actual ET is extracted directly from precipitation and from the soil using the Budyko function. The example uses CAMELS catchment-87 data. **Notation:** FORCINGPET
-### Build
+The integration tests run the `cfe_bmi_driver` with v2 legacy and v3 DSBM
+configs against golden reference outputs at 1e-10 tolerance (exact match).
+
+### Verbose output on failure
+```bash
+ctest --test-dir build --output-on-failure
 ```
-cmake ../ -DFORCINGPET=ON
-make && cd ..
+
+## Running the BMI Driver
+
+The `cfe_bmi_driver` executable reads a config file and forcing data, runs
+the model through the BMI interface, and writes output files.
+
+### With v2 legacy config
+```bash
+build/cfe_bmi_driver \
+    -c configs/legacy_cfe_config_cat87.cf2 \
+    -f forcings/cat87_01Dec2015.csv \
+    -q output/q.out \
+    -x output/fluxes.out \
+    -s output/storage.out \
+    -v 1
 ```
-### Run
-<pre>
-<a href="https://github.com/NOAA-OWP/cfe/blob/master/run_cfe.sh">./run_cfe.sh</a> FORCINGPET
-</pre>
 
-## Example 4 (pseudo framework mode)
-The setup of this example is identical to example #3, however, actual ET is computed using a rootzone-based scheme. The example requires CFE coupling with [SoilMoistureProfiles](https://github.com/NOAA-OWP/SoilMoistureProfiles) module which provides a one-dimensional soil moisture profile that is used to estimate actual evapotranspiration (AET) from the deepest rootzone layer. **Notation:** AETROOTZONE
-
-**Clone SoilMoistureProfiles repo:**
+### With v3 DSBM config
+```bash
+build/cfe_bmi_driver \
+    -c configs/bmi_config_cat87_v3.cf3 \
+    -f forcings/cat87_01Dec2015.csv \
+    -q output/q.out \
+    -x output/fluxes.out \
+    -s output/storage.out \
+    -t output/thetas.out \
+    -v 1
 ```
-git clone https://github.com/NOAA-OWP/SoilMoistureProfiles extern/SoilMoistureProfiles (from cfe directory)
+
+### Driver options
 ```
-### Build
+Usage:
+  cfe_bmi_driver -c <config> -f <forcing> [OPTIONS]
+
+Required:
+  -c <file>     Configuration file (.cf2 or .cf3)
+
+Optional:
+  -f <file>     Forcing data file (overrides config)
+  -q <file>     Discharge output file (m/timestep)
+  -b <file>     Volume balance summary file
+  -x <file>     Internal fluxes output file
+  -s <file>     Internal storages output file
+  -t <file>     Soil moisture theta output (DSBM only)
+  -v <level>    Verbosity (0=quiet, 1=normal, 2=verbose)
+  -dryrun       Run 120 timesteps without forcing data
 ```
-cmake ../ -DAETROOTZONE=ON
-make && cd ..
+
+## Config File Formats
+
+CFE v3 supports two config formats:
+
+### Legacy v2 format (`.cf2` / `.txt`)
+Key=value pairs, one per line. Units in brackets. Example:
 ```
-### Run
-<pre>
-<a href="https://github.com/NOAA-OWP/cfe/blob/master/run_cfe.sh">./run_cfe.sh</a> AETROOTZONE
-</pre>
+forcing_file=BMI
+soil_params.depth=2.0[m]
+soil_params.b=4.05[]
+soil_params.satdk=0.00000338[m s-1]
+...
+```
 
-## Example 5 (nextgen framework mode)
-This example couples CFE with PET. Nextgen framework reads the forcing data and passes data to CFE and PET using BMIs. The example uses CAMELS catchment-87 data. (Notation: NGEN)
-### Build
-See general instructions [here](https://github.com/NOAA-OWP/ngen/wiki/NGen-Tutorial) or [here](https://github.com/NOAA-OWP/SoilFreezeThaw/blob/master/INSTALL.md#build-2) to build and run models in the ngen framework.
-**NOTE:** `NGEN_WITH_EXTERN_ALL=ON` builds CFE, SLoTH, and PET models needed for CFE runs. So below some of the steps are optional and only needed if working with unpinned versions; note ngen points to a specific release of each model.
+### v3 keyword format (`.cf3`)
+Comments with `#` or `//`, richer keyword names, explicit units. Example:
+```
+cfe_config_version=3.0[]
+soil_depth_m=2.0[m]
+soil_Clapp_Hornberger_exponent_b=4.05[]
+soil_sat_hydraulic_conductivity_cm_per_h=1.2168[cm h-1]
+control_soil_simulate_discrete_soil_moisture_true_false=TRUE
+...
+```
 
-- ### Specific instructions for building nextgen and models needed for the example here
- - git clone https://github.com/noaa-owp/ngen && cd ngen
-  - git submodule update --init --recursive
-  - #### build ngen
-     - cmake -B cmake_build -S . -DNGEN_WITH_BMI_C=ON -DNGEN_WITH_BMI_FORTRAN=ON -DNGEN_WITH_EXTERN_ALL=ON
-     - make -j4 -C cmake_build
-     
-  - #### CFE (optional)
-    - git submodule update --remote extern/cfe/cfe
-    - cmake -B extern/cfe/cfe/cmake_build -S extern/cfe/cfe/ -DNGEN=ON
-    - make -C extern/cfe/cfe/cmake_build
-    
-  - #### PET (optional)
-    - git submodule update --remote extern/evapotranspiration/evapotranspiration
-    - cmake -B extern/evapotranspiration/evapotranspiration/cmake_build -S extern/evapotranspiration/evapotranspiration/
-    - make -C extern/evapotranspiration/evapotranspiration/cmake_build/
-    
-  - #### SLoTH (optional)
-    SLoTH is a BMI that is used to set a bmi variable(s) that is not provided by other BMIs but required by the model. So build [SLoTH](https://github.com/NOAA-OWP/SLoTH) using the following instructions
-    - cd extern/sloth/ && git checkout latest 
-    - git submodule update --init --recursive
-    - cd ../..
-    - cmake -B extern/sloth/cmake_build -S extern/sloth/
-    - make -C extern/sloth/cmake_build
+See `configs/clean_config.cf3` for a fully annotated template of all v3 options.
 
-   - #### SMP (Needed only if CFE coupling to SoilMoistureProfiles is needed for AET rootzone based simulations)
-     - git submodule update --remote extern/SoilMoistureProfiles/SoilMoistureProfiles
-     - cmake -B extern/SoilMoistureProfiles/SoilMoistureProfiles/cmake_build -S extern/SoilMoistureProfiles/SoilMoistureProfiles -DNGEN=ON
-     - make -C extern/SoilMoistureProfiles/SoilMoistureProfiles/cmake_build
+## ngen Framework Integration
 
-### Run
-The following pre-process step needs to be completed before running the examples.
-  #### Pre-process step
-  ```
-  mkdir cfe && cd cfe
-  ln -s ../extern
-  ln -s ../data
-  ln -s ./extern/cfe/cfe/realizations
-  ```
-  
-  **Note:** Make sure the "library_file" and "init_config" in the BMI blocks in the realization file are pointing to the right files, these paths depend on how you build your models.
+CFE v3 builds a shared library (`libcfebmi.dylib` / `libcfebmi.so`) that
+can be loaded by the [ngen](https://github.com/NOAA-OWP/ngen) framework.
 
-  ```
-  ../cmake_build/ngen data/catchment_data.geojson cat-27 data/nexus_data.geojson nex-26 realizations/realization_cfe_pet_surfgiuh.json
-  ```
-  ```
-  ../cmake_build/ngen data/catchment_data.geojson cat-27 data/nexus_data.geojson nex-26 realizations/realization_cfe_pet_surfnash.json
-  ```
+### Building within ngen
+```bash
+# From ngen directory
+git submodule update --remote extern/cfe/cfe
+cmake -B extern/cfe/cfe/cmake_build -S extern/cfe/cfe/
+make -C extern/cfe/cfe/cmake_build
+```
 
-## Alternative: Compiling and Running CFE
-### Example 1. Read local forcing file
-To compile and run CFE with locally read forcing data, run the following from the command line:
+The realization config should reference the shared library and a CFE config
+file (either v2 or v3 format):
 
-1. `gcc -lm -Iinclude ./src/main.c ./src/cfe.c ./src/bmi_cfe.c ./src/giuh.c ./src/conceptual_reservoir.c ./src/nash_cascade.c -o cfe_base`. This will generate an executable called `cfe_base`.
-2.  Then run the model with example forcing data: `./cfe_base ./configs/cfe_config_cat_87.txt`  
+```json
+{
+    "model_type_name": "bmi_c",
+    "library_file": "./extern/cfe/cfe/cmake_build/libcfebmi.so",
+    "init_config": "./extern/cfe/cfe/configs/legacy_cfe_config_cat87.cf2"
+}
+```
 
+### BMI Variable Names
 
-### Example 2. CFE Model gets forcings passed from BMI
+See `CHANGELOG.md` for the complete v2→v3 variable name mapping.
 
-CFE was designed to read its own forcing file, but we have added an option to get forcings passed in through BMI using its `set_value` functionality. To demonstrate this functionality we have included the BMI-enabled AORC forcing read module. Follow the steps below:  
+**Inputs:** `rainfall_depth_m`, `et_potential_m`, `verbosity`, `forcing_file_path`
 
-1. `gcc -lm -Iinclude ./src/main_pass_forcings.c ./src/cfe.c ./src/bmi_cfe.c ./src/giuh.c ./src/conceptual_reservoir.c  ./src/nash_cascade.c ./extern/aorc_bmi/src/aorc.c ./extern/aorc_bmi/src/bmi_aorc.c  -o cfe_forcing`. This generates an executable called `cfe_forcing`. 
+**Key outputs:** `discharge_m`, `surface_runoff_m`, `lateral_flow_m`, `baseflow_m`, `actual_et_m`
 
-2. To run this executable you must pass the path to the corresponding configuration files for **BOTH** CFE and AORC (in that order): `./cfe_forcing ./configs/cfe_config_cat_87_pass.txt ./extern/aorc_bmi/configs/aorc_config_cat_87.txt`
+**Calibration parameters** (20 total, accessible via `set_value` / `get_value_ptr`):
+`soil_effective_porosity`, `soil_saturated_hydraulic_conductivity`,
+`soil_Clapp_Hornberger_b`, `gw_discharge_coefficient`, `gw_discharge_exponent`,
+`gw_max_storage_m`, etc. See `bmi_cfe.c` `param_var_names[]` for the full list.
+v2 parameter names (e.g. `maxsmc`, `satdk`, `Cgw`) are accepted as aliases.
 
-### Example 3. CFE Model gets forcings AND potential evapotranspiration passed from BMI
-CFE can remove mass from the modeled system through evapotranspiration (directly from precipitation and from the soil using the Budyko function). Follow the steps below:  
+### Notes
 
-1. `gcc -lm -Iinclude ./src/main_cfe_aorc_pet.c ./extern/evapotranspiration/src/pet.c ./extern/evapotranspiration/src/bmi_pet.c ./src/cfe.c ./src/bmi_cfe.c ./src/giuh.c ./src/conceptual_reservoir.c  ./src/nash_cascade.c ./extern/aorc_bmi/src/aorc.c ./extern/aorc_bmi/src/bmi_aorc.c -o cfe_forcingpet`. This generates an executable called `cfe_forcingpet`.
-
-2. To run this executable you must pass the path to the corresponding configuration files for CFE, PET and AORC (in that order):  `./cfe_forcingpet ./configs/cfe_config_cat_87_pass.txt ./extern/aorc_bmi/configs/aorc_config_cat_87.txt ./extern/evapotranspiration/configs/pet_config_cat_87_pass.txt`
-
-### Example 4.
-CFE rootzone-based example couples C and C++ modules and should be built with cmake, follow the instructions [here](https://github.com/NOAA-OWP/cfe/blob/master/INSTALL.md#example-4-pseudo-framework-mode).
-
-### NOTES:
- - The configuration files must be passed in this order: (1) the CFE configuration file, (2) the forcing configuration file, (3) the potential evapotranspiration (PET) configuration file, and (4) the soil moisture profile configuration file
- - Original author code. The code includes a full program to read and process atmospheric forcing data, print the model output and check for mass balance closure. This code can be run from the [original_author_code](./original_author_code) directory. This code does not have a BMI implementation.
+- `include/bmi.h` must be the canonical [CSDMS BMI-C](https://github.com/csdms/bmi-c)
+  release header. ABI compatibility with ngen cannot be guaranteed if this file
+  is modified or replaced with a non-standard version.
+- The `-DNGEN=ON` flag is accepted for backward compatibility but is no longer
+  required. A plain `cmake -B build -S .` builds everything.

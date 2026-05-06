@@ -1,25 +1,66 @@
 # Conceptual Functional Equivalent (CFE) Model
 
-CFE (Conceptual Functional Equivalent) is a simplified conceptual model written by Fred Ogden that is designed to be functionally equivalent to the National Water Model. To see the original author code, which is not BMI compatible, please refer to the [original_author_code](https://github.com/NOAA-OWP/cfe/tree/master/original_author_code) directory.  For more information on the hypotheses and ideas underpinning the CFE model, see the [T-shirt Approximation of the National Water Model versions 1.2, 2.0, and 2.1](https://github.com/NOAA-OWP/cfe/blob/master/MODEL.md) section of this document.  The remainder of this document discusses the BMI enabled and expanded CFE model. 
+CFE is a simplified conceptual hydrological model designed to be functionally
+equivalent to the stormflow generation components of the NOAA National Water
+Model (versions 3.1 and earlier). Originally conceived by Fred L. Ogden
+(NOAA/NWS Office of Water Prediction).
 
-## Build and Run Instructions
-Detailed instructions on how to build and run CFE can be found in the [INSTALL](https://github.com/NOAA-OWP/cfe/blob/master/INSTALL.md) guide.
- - Test examples highlights
-   - Unittest (see [tests](https://github.com/NOAA-OWP/cfe/blob/master/test/README.md))
-   - Example 1 (standalone mode): CFE reads local forcing data
-   - Example 2 (pseudo framework mode): CFE coupled to AORC (AORC provides forcing data through BMI)
-   - Example 3 (pseudo framework mode): CFE coupled to AORC (provides forcing data through BMI) and PET (provides potential evapotranspiration via BMI)
-   - Example 4 (pseudo framework mode): Example #3 repeated with rootzone-based actual evapotranspiration
-   - Example 5 (nextgen framework mode): CFE coupled to PET module
-   
-## Model Configuration File
-A detailed description of the parameters for model configuration is provided [here](https://github.com/NOAA-OWP/cfe/tree/master/configs/README.md).
+For the conceptual basis and hypotheses underpinning CFE, see
+[MODEL.md](MODEL.md).
 
-## Getting help
-For questions, please contact XYZ, the main maintainer of the repository.
+## Version 3 Highlights
 
-## Known issues or raise an issue
-We are constantly looking to improve the model and/or fix bugs as they arise. Please see the Git Issues for known issues or if you want to suggest adding a capability or to report a bug, please open an issue.
+- **Discrete Soil Moisture Balance Model (DSBM)**: optional 4-layer
+  Noah-MP-style soil discretization with Darcy-Buckingham vertical fluxes
+  and Clapp-Hornberger hydraulic properties.
+- **Unified Nash Cascade routing** for both surface and subsurface flow,
+  with optional retention depth and runon infiltration.
+- **Priestley-Taylor PET** estimation from AORC radiation data (testing only).
+- **New v3 config format** (`.cf3`) with comments and explicit units, plus
+  full backward compatibility with v2 legacy format (`.cf2`/`.txt`).
+- **BMI compliance** with the CSDMS BMI-C standard, including `get_value_ptr`
+  for all variables and the ngen mass balance protocol.
+- **20 calibration parameters** accessible via BMI `set_value`/`get_value_ptr`,
+  with v2 parameter name aliases for backward compatibility.
 
-## Getting involved
-See general instructions to contribute to the model development ([instructions](https://github.com/NOAA-OWP/cfe/blob/master/CONTRIBUTING.md)) or simply fork the repository and submit a pull request.
+## Build and Run
+
+```bash
+cmake -B build -S .
+cmake --build build
+ctest --test-dir build       # 46 tests: 44 unit + 2 integration
+```
+
+See [INSTALL.md](INSTALL.md) for detailed build options, driver usage, and
+ngen framework integration instructions.
+
+## Configuration
+
+CFE supports both legacy v2 and new v3 config formats. Example configs are
+in the `configs/` directory. See [configs/README.md](configs/README.md) for
+parameter reference, and `configs/clean_config.cf3` for a fully annotated
+v3 template.
+
+## Testing
+
+- **Unit tests**: 44 CTest tests covering all BMI functions, calibration
+  parameter round-trips, and mass balance protocol validation.
+- **Integration tests**: 2 golden output comparisons (v2 legacy + v3 DSBM)
+  at 1e-10 tolerance (exact numerical match).
+
+```bash
+ctest --test-dir build -L integration   # integration only
+ctest --test-dir build -E integration   # unit tests only
+```
+
+See [test/README.md](test/README.md) for test code organization.
+
+## Migration from v2
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete v2-to-v3 variable name
+mapping, calibration parameter reference, and list of removed items.
+
+## Getting Help
+
+For questions, please open a GitHub Issue. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for development guidelines.
