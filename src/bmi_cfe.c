@@ -35,14 +35,15 @@
 /*  Variable name tables                                               */
 /* ================================================================== */
 
-/* --- inputs --- */
+/* --- inputs (model forcing only) ---
+ * verbosity and forcing_file_path are still accessible via set_value/
+ * get_value/get_value_ptr but are not advertised as BMI input variables.
+ * BMI v2 has no "string" type, and ngen rejects non-numeric inputs. */
 static const char* input_var_names[] = {
     "rainfall_depth_m",
-    "et_potential_m",
-    "verbosity",
-    "forcing_file_path"
+    "et_potential_m"
 };
-static const int INPUT_VAR_NAME_COUNT = 4;
+static const int INPUT_VAR_NAME_COUNT = 2;
 
 /* --- outputs --- */
 static const char* output_var_names[] = {
@@ -174,17 +175,19 @@ static int Update(Bmi *self) {
     if (CONTEXT(self) == NULL) return BMI_FAILURE;
 
     CFE_Model_Context *ctx = CONTEXT(self);
+
+    /* accumulate input BEFORE the step so mass_in is consistent on failure */
+    ctx->volbal.cumulative_vol += ctx->forcing.rainfall_depth_m;
+
     int result = cfe_context_update(ctx);
-    if (result != 0) return BMI_FAILURE;
 
-    /* update ngen mass balance protocol fields */
-    ctx->volbal.cumulative_vol += ctx->forcing.rainfall_depth_m;  /* accumulate total input */
-    ctx->volbal.volume_in_domain = ctx->timestep_storage_end_m;   /* total storage at end of step */
-    /* ctx->volbal.leakage stays 0 — no deep losses modeled */
-
-    /* cache the volume balance residual for get_value_ptr */
+    /* update remaining protocol fields regardless of success/failure
+     * so the caller can inspect mass balance state on BMI_FAILURE */
+    ctx->volbal.volume_in_domain = ctx->timestep_storage_end_m;
     ctx->vol_balance_residual_m = ctx->volbal.volstart + ctx->volbal.volin
                                 - ctx->volbal.volout   - ctx->volbal.volend;
+
+    if (result != 0) return BMI_FAILURE;
     return BMI_SUCCESS;
 }
 
@@ -406,6 +409,9 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
 }
 
 static int Get_var_location(Bmi *self, const char *name, char *location) {
+    /* Verify this is a recognized variable before returning location */
+    char type[BMI_MAX_TYPE_NAME];
+    if (Get_var_type(self, name, type) != BMI_SUCCESS) return BMI_FAILURE;
     strcpy(location, "node");
     return BMI_SUCCESS;
 }
@@ -435,7 +441,7 @@ static int Get_end_time(Bmi *self, double *time) {
         cfe_context_get_time_step_seconds(CONTEXT(self), &dt_s);
         *time = (double)CONTEXT(self)->options.num_timesteps * (double)dt_s;
     } else {
-        *time = -1.0;  /* unknown — forcings arrive via BMI */
+        *time = (double)FLT_MAX;  /* unknown — forcings arrive via BMI */
     }
     return BMI_SUCCESS;
 }
@@ -457,105 +463,49 @@ static int Get_time_step(Bmi *self, double *dt) {
 /*  Get value / Get value ptr / Get value at indices                   */
 /* ================================================================== */
 
+/* forward declarations — Get_value delegates to Get_value_ptr */
+static int Get_value_ptr(Bmi *self, const char *name, void **dest);
+static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes);
+
 static int Get_value(Bmi *self, const char *name, void *dest) {
-    CFE_Model_Context *ctx = CONTEXT(self);
-    if (ctx == NULL) return BMI_FAILURE;
-    double *d = (double*)dest;
+    if (CONTEXT(self) == NULL) return BMI_FAILURE;
 
-    /* --- primary fluxes --- */
-    if (strcmp(name, "discharge_m") == 0) {
-        *d = ctx->last_outputs.qout_m;
-    }
-    else if (strcmp(name, "surface_runoff_m") == 0) {
-        *d = ctx->last_outputs.surface_runoff_generated_m;
-    }
-    else if (strcmp(name, "lateral_flow_m") == 0) {
-        *d = ctx->last_outputs.lateral_flow_m;
-    }
-    else if (strcmp(name, "baseflow_m") == 0) {
-        *d = ctx->last_outputs.baseflow_m;
-    }
-    else if (strcmp(name, "actual_et_m") == 0) {
-        *d = ctx->last_outputs.actual_et_m;
-    }
-    else if (strcmp(name, "vol_balance_residual_m") == 0) {
-        *d = ctx->vol_balance_residual_m;
-    }
-
-    /* --- state scalars --- */
-    else if (strcmp(name, "state_soil_storage_m") == 0) {
-        *d = ctx->state.soil_storage_m;
-    }
-    else if (strcmp(name, "state_gw_storage_m") == 0) {
-        *d = ctx->state.gw_storage_m;
-    }
-    else if (strcmp(name, "state_current_timestep") == 0) {
-        *(int*)dest = ctx->state.current_time_step;
-    }
-
-    /* --- state arrays --- */
-    else if (strcmp(name, "state_soil_moisture_theta") == 0) {
+    /* Arrays need element-by-element copy from the source array */
+    if (strcmp(name, "state_soil_moisture_theta") == 0) {
+        double *d = (double*)dest;
         for (int i = 0; i < NDISC; i++)
-            d[i] = ctx->state.soil_discrete_storage_theta[i];
+            d[i] = CONTEXT(self)->state.soil_discrete_storage_theta[i];
+        return BMI_SUCCESS;
     }
-    else if (strcmp(name, "state_nash_subsurface_storage") == 0) {
+    if (strcmp(name, "state_nash_subsurface_storage") == 0) {
+        double *d = (double*)dest;
         for (int i = 0; i < 2; i++)
-            d[i] = ctx->state.nash_subsurface_storage_m[i];
+            d[i] = CONTEXT(self)->state.nash_subsurface_storage_m[i];
+        return BMI_SUCCESS;
     }
-    else if (strcmp(name, "state_giuh_queue") == 0) {
-        for (int i = 0; i < ctx->parameters.giuh_num_ordinates; i++)
-            d[i] = ctx->state.giuh_queue_m[i];
+    if (strcmp(name, "state_giuh_queue") == 0) {
+        double *d = (double*)dest;
+        for (int i = 0; i < CONTEXT(self)->parameters.giuh_num_ordinates; i++)
+            d[i] = CONTEXT(self)->state.giuh_queue_m[i];
+        return BMI_SUCCESS;
     }
-
-    /* --- config / parameters --- */
-    else if (strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
-        *(int*)dest = ctx->options.simulate_discrete_soil_moisture;
-    }
-    else if (strcmp(name, "param_catchment_area_km2") == 0) {
-        *d = ctx->parameters.catchment_area_km2;
-    }
-    else if (strcmp(name, "param_soil_depth_m") == 0) {
-        *d = ctx->parameters.soil_depth_m;
-    }
-    else if (strcmp(name, "param_soil_porosity") == 0) {
-        *d = ctx->parameters.effective_porosity;
-    }
-
-    /* --- per-timestep volume balance --- */
-    else if (strcmp(name, "timestep_storage_start_m") == 0) {
-        *d = ctx->timestep_storage_start_m;
-    }
-    else if (strcmp(name, "timestep_input_m") == 0) {
-        *d = ctx->timestep_input_m;
-    }
-    else if (strcmp(name, "timestep_output_m") == 0) {
-        *d = ctx->timestep_output_m;
-    }
-    else if (strcmp(name, "timestep_storage_end_m") == 0) {
-        *d = ctx->timestep_storage_end_m;
-    }
-
-    /* --- inputs (read-back) --- */
-    else if (strcmp(name, "rainfall_depth_m") == 0) {
-        *d = ctx->forcing.rainfall_depth_m;
-    }
-    else if (strcmp(name, "et_potential_m") == 0) {
-        *d = ctx->forcing.et_potential_m;
-    }
-    else if (strcmp(name, "verbosity") == 0) {
-        *(int*)dest = ctx->options.verbosity;
-    }
-    else if (strcmp(name, "forcing_file_path") == 0) {
-        strncpy((char*)dest, ctx->options.input_forcing_filename,
+    if (strcmp(name, "forcing_file_path") == 0) {
+        strncpy((char*)dest, CONTEXT(self)->options.input_forcing_filename,
                 PATH_FILENAME_STRING_LENGTH);
+        return BMI_SUCCESS;
     }
 
-    else {
-        /* check calibration parameters */
-        double *pp = param_field_ptr(ctx, name);
-        if (pp != NULL) { *d = *pp; }
-        else return BMI_FAILURE;
-    }
+    /* All other variables: delegate through get_value_ptr */
+    void *ptr = NULL;
+    if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)
+        return BMI_FAILURE;
+
+    /* Determine size to copy */
+    int nbytes = 0;
+    if (Get_var_nbytes(self, name, &nbytes) != BMI_SUCCESS)
+        return BMI_FAILURE;
+
+    memcpy(dest, ptr, nbytes);
     return BMI_SUCCESS;
 }
 
@@ -588,7 +538,7 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "timestep_storage_end_m") == 0)   { *dest = &ctx->timestep_storage_end_m;                 return BMI_SUCCESS; }
     if (strcmp(name, "vol_balance_residual_m") == 0) { *dest = &ctx->vol_balance_residual_m;                return BMI_SUCCESS; }
 
-    /* --- output arrays --- */
+    /* --- state arrays (BMI output variables for checkpointing/hotstart) --- */
     if (strcmp(name, "state_soil_moisture_theta") == 0)     { *dest = ctx->state.soil_discrete_storage_theta;  return BMI_SUCCESS; }
     if (strcmp(name, "state_nash_subsurface_storage") == 0) { *dest = ctx->state.nash_subsurface_storage_m;    return BMI_SUCCESS; }
     if (strcmp(name, "state_giuh_queue") == 0)              { *dest = ctx->state.giuh_queue_m;                 return BMI_SUCCESS; }
@@ -627,64 +577,45 @@ static int Get_value_at_indices(Bmi *self, const char *name, void *dest, int *in
 /* ================================================================== */
 
 static int Set_value(Bmi *self, const char *name, void *src) {
-    CFE_Model_Context *ctx = CONTEXT(self);
-    if (ctx == NULL) return BMI_FAILURE;
+    if (CONTEXT(self) == NULL) return BMI_FAILURE;
 
-    /* --- forcing inputs --- */
-    if (strcmp(name, "rainfall_depth_m") == 0) {
-        ctx->forcing.rainfall_depth_m = *(double*)src;
-    }
-    else if (strcmp(name, "et_potential_m") == 0) {
-        ctx->forcing.et_potential_m = *(double*)src;
-    }
-    else if (strcmp(name, "verbosity") == 0) {
-        ctx->options.verbosity = *(int*)src;
-    }
-    else if (strcmp(name, "forcing_file_path") == 0) {
-        strncpy(ctx->options.input_forcing_filename, (char*)src,
-                sizeof(ctx->options.input_forcing_filename) - 1);
-        ctx->options.input_forcing_filename[sizeof(ctx->options.input_forcing_filename) - 1] = '\0';
-    }
-
-    /* --- state arrays (hotstart) --- */
-    else if (strcmp(name, "state_soil_moisture_theta") == 0) {
+    /* Arrays need element-by-element copy into the target array */
+    if (strcmp(name, "state_soil_moisture_theta") == 0) {
         double *s = (double*)src;
         for (int i = 0; i < NDISC; i++)
-            ctx->state.soil_discrete_storage_theta[i] = s[i];
+            CONTEXT(self)->state.soil_discrete_storage_theta[i] = s[i];
+        return BMI_SUCCESS;
     }
-    else if (strcmp(name, "state_nash_subsurface_storage") == 0) {
+    if (strcmp(name, "state_nash_subsurface_storage") == 0) {
         double *s = (double*)src;
         for (int i = 0; i < 2; i++)
-            ctx->state.nash_subsurface_storage_m[i] = s[i];
+            CONTEXT(self)->state.nash_subsurface_storage_m[i] = s[i];
+        return BMI_SUCCESS;
     }
-    else if (strcmp(name, "state_giuh_queue") == 0) {
-        if (ctx->options.surface_routing_scheme != SURF_ROUTE_GIUH)
-            return BMI_FAILURE;
+    if (strcmp(name, "state_giuh_queue") == 0) {
         double *s = (double*)src;
-        for (int i = 0; i < ctx->parameters.giuh_num_ordinates; i++)
-            ctx->state.giuh_queue_m[i] = s[i];
+        for (int i = 0; i < CONTEXT(self)->parameters.giuh_num_ordinates; i++)
+            CONTEXT(self)->state.giuh_queue_m[i] = s[i];
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, "forcing_file_path") == 0) {
+        strncpy(CONTEXT(self)->options.input_forcing_filename, (char*)src,
+                sizeof(CONTEXT(self)->options.input_forcing_filename) - 1);
+        CONTEXT(self)->options.input_forcing_filename[
+            sizeof(CONTEXT(self)->options.input_forcing_filename) - 1] = '\0';
+        return BMI_SUCCESS;
     }
 
-    /* --- state scalars (hotstart) --- */
-    else if (strcmp(name, "state_soil_storage_m") == 0) {
-        ctx->state.soil_storage_m = *(double*)src;
-    }
-    else if (strcmp(name, "state_gw_storage_m") == 0) {
-        ctx->state.gw_storage_m = *(double*)src;
-    }
-    else if (strcmp(name, "state_current_timestep") == 0) {
-        ctx->state.current_time_step = *(int*)src;
-    }
+    /* All other variables: delegate through get_value_ptr */
+    void *ptr = NULL;
+    if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)
+        return BMI_FAILURE;
 
-    else {
-        /* calibration parameters — all are double type */
-        double *pp = param_field_ptr(ctx, name);
-        if (pp != NULL) {
-            *pp = *(double*)src;
-        } else {
-            return BMI_FAILURE;
-        }
-    }
+    int nbytes = 0;
+    if (Get_var_nbytes(self, name, &nbytes) != BMI_SUCCESS)
+        return BMI_FAILURE;
+
+    memcpy(ptr, src, nbytes);
     return BMI_SUCCESS;
 }
 
@@ -728,6 +659,7 @@ static int Get_grid_size(Bmi *self, int grid, int *size) {
 }
 
 static int Get_grid_type(Bmi *self, int grid, char *type) {
+    if (grid < 0 || grid > 3) return BMI_FAILURE;
     strcpy(type, (grid == 0) ? "scalar" : "vector");
     return BMI_SUCCESS;
 }

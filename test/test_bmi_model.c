@@ -1,5 +1,6 @@
 #include <math.h>
 #include <string.h>
+#include <float.h>
 #include "general_test_utils.h"
 #include "bmi_test_utils.h"
 #include "bmi_cfe.h"
@@ -314,8 +315,8 @@ int test_get_end_time(TestFixture* fixture)
         return TEST_RETURN_CODE_FAIL;
     }
 
-    // v3: when forcing_file=BMI, end_time is -1 (unknown)
-    if (!confirm_matches_expected_doubles(-1.0, end_time)) {
+    // When forcing_file=BMI, end_time is FLT_MAX (unknown/unbounded)
+    if (!confirm_matches_expected_doubles((double)FLT_MAX, end_time)) {
         printf("\nDid not match expected module end time");
         return TEST_RETURN_CODE_FAIL;
     }
@@ -1251,11 +1252,9 @@ int test_get_var_units(TestFixture* fixture)
         "m",    /* timestep_input_m */
         "m",    /* timestep_output_m */
         "m",    /* timestep_storage_end_m */
-        /* 4 inputs */
+        /* 2 inputs */
         "m",    /* rainfall_depth_m */
-        "m",    /* et_potential_m */
-        "1",    /* verbosity */
-        "1"     /* forcing_file_path */
+        "m"     /* et_potential_m */
     };
 
     for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {

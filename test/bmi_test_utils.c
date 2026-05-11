@@ -33,11 +33,9 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         "timestep_input_m",
         "timestep_output_m",
         "timestep_storage_end_m",
-        /* 4 inputs */
+        /* 2 inputs (model forcing only) */
         "rainfall_depth_m",
-        "et_potential_m",
-        "verbosity",
-        "forcing_file_path"
+        "et_potential_m"
     };
 
     fixture->expected_output_and_input_var_names = allocate_array_of_strings(EXPECTED_TOTAL_VAR_COUNT, BMI_MAX_VAR_NAME);
