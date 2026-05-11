@@ -29,7 +29,10 @@ int cfe_context_create_from_config(const char* cfg_path, CFE_Model_Context** out
     double version = read_cfe_config_version(cfg_path);
     if (fabs(version) < 1.0e-04) version = 2.0;
     
-    if (parse_config_driver(cfg_path, version, &ctx->config, &ctx->parameters, &ctx->options) != 0) {  // TODO determine version
+    /* Version is auto-detected by read_cfe_config_version (legacy defaults to 2.0).
+     * TODO: return specific error codes from parse/init so callers can distinguish
+     * config errors from initialization failures. */
+    if (parse_config_driver(cfg_path, version, &ctx->config, &ctx->parameters, &ctx->options) != 0) {
         free(ctx);
         return -1;
     }
@@ -72,8 +75,8 @@ double calculate_total_storage(const CFE_Model_Context* ctx) {
         }
     }
     
-    // Subsurface routing storage (Nash cascade)
-    for (int i = 0; i < 2; i++) {  // Assuming 2 reservoirs for subsurface
+    // Subsurface routing storage (Nash cascade — always MAX_NUM_SUBSURFACE_NASH_CASCADE = 2)
+    for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
         total += ctx->state.nash_subsurface_storage_m[i];
     }
     

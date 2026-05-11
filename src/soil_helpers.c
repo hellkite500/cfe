@@ -241,6 +241,10 @@ double flux_DB_pair(double psi_up, double K_up,
 }
 
 /************/ // Choose number of substeps (uses dt_hours)
+// Heuristic stability criteria for forward-Euler routing -FLO:
+// 1) flux_ratio: how much water would move in dt_hours? 10% of thinnest disc used.
+// 2) rain_ratio: fraction of top-cell storage capacity asked for this hour. 20% used.
+// The worse of the two determines the substep count (1..12).
 int choose_n_sub_dt(double rain_mm_per_h,
                     double theta1, double theta_sat, double dz1,
                     double q12_0, double q23_0, double q34_0,
@@ -347,7 +351,11 @@ static double storage_given_zwt(double z_wt,
     return total;
 }
 
-/************/ // Initialize from target storage via hydrostatic profile
+/************/ // Initialize theta profile from a target total storage [m].
+// Uses bisection on water-table depth (zwt) to find the hydrostatic
+// equilibrium profile whose integrated storage matches target_storage_m.
+// The capillary fringe above the water table is fully saturated; above
+// that, theta follows the Clapp-Hornberger retention curve.
 void initialize_hydrostatic_from_storage(double soil_depth_m,
                                          double theta_sat,
                                          double phi_sat_cm,

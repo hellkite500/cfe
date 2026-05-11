@@ -23,9 +23,11 @@
 #define FALSE 0
 #endif
 
-// Define NDISCS iff not already defined
+// NDISC is the canonical constant (defined in cfe_soil_discrete.h).
+// NDISCS is a legacy alias used in config parsing — kept for compatibility.
+#include "cfe_soil_discrete.h"
 #ifndef NDISCS
-#define NDISCS 4  // Number of soil discretizations
+#define NDISCS NDISC
 #endif
 
 #ifndef UNIT_STRING_LENGTH
@@ -115,6 +117,8 @@ typedef struct CFE_CONFIG
     double soil_Xinanjiang_tension_water_soil_moist_distrib_exponent;
     double soil_Xinanjiang_free_water_soil_moist_distrib_exponent;
 
+
+    // Output configuration fields
     char   output_path_name[PATH_FILENAME_STRING_LENGTH];
     char   output_status_warnings_filename[PATH_FILENAME_STRING_LENGTH];
     char   output_internal_fluxes_filename[PATH_FILENAME_STRING_LENGTH];

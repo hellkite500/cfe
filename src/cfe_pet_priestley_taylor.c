@@ -24,6 +24,8 @@
 // longwave emmissivity, which it isn't.  FLO 9/2025
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "cfe_pet_priestley_taylor.h"
 
 // Priestley-Taylor potential evapotranspiration calculation
@@ -57,8 +59,12 @@ double calculate_pet_priestley_taylor(const cfe_forcing_struct* forcing, int dt_
     double temp_C = temp_K - 273.15;
     
     // Calculate saturation vapor pressure (Tetens equation) in kPa
+    if (temp_C <= -237.3) {
+        fprintf(stderr, "ERROR: air_temperature_C <= -237.3 C in calculate_pet_priestley_taylor().\n");
+        exit(EXIT_FAILURE);
+    }
     double es_kPa = 0.6108 * exp((17.27 * temp_C) / (temp_C + 237.3));
-    
+
     // Calculate slope of saturation vapor pressure curve (kPa/K)
     double delta = (4098.0 * es_kPa) / pow(temp_C + 237.3, 2.0);
     

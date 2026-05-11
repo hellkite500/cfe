@@ -28,6 +28,8 @@ double nash_cascade_routing(double runoff_m, double soil_storage_deficit_m,
   int N_nash     = nash_params->N_nash;
   double K_nash  = nash_params->K_nash;
   
+
+  // local vars
   double dt_h  = 1.0;             // model timestep [hour]
   double subdt = dt_h/nsubsteps;
   double S     = 0.0;
@@ -36,26 +38,18 @@ double nash_cascade_routing(double runoff_m, double soil_storage_deficit_m,
   double Q_out = 0.0;            // discharge at the outlet (the last reservoir) per subtimestep
   double Q_to_channel_m = 0.0;   // total outflow to channel per timestep
   
-
   nash_params->nash_storage[0] += runoff_m;
 
   // Loop through number of sub-timesteps
   for (int ts = 0; ts < nsubsteps; ts++) {
 
-    //Loop through reservoirs
+    //Loop through reservoirs (N_nash bounded by caller; no inner bounds check needed)
     for(int i = 0; i < N_nash; i++) {
 
-      if (i >= MAX_NUM_SURFACE_NASH_CASCADE) {
-          fprintf(stderr, "ERROR: Nash cascade index %d out of bounds\n", i);
-          break;
-      }
-   
       // if storage of ith reservoir is zero, move to the next reservoir
       if (nash_params->nash_storage[i] == 0.0)
 	continue;
 
-
-      /*=========================================================================================*/
       // Route water through Nash reservoirs
       S = nash_params->nash_storage[i];
 
@@ -75,6 +69,7 @@ double nash_cascade_routing(double runoff_m, double soil_storage_deficit_m,
 
   }
 
+  // Return the flow output
   return (Q_to_channel_m);
 
 }

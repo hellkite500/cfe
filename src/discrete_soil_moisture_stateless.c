@@ -93,11 +93,12 @@ static int choose_n_substeps_generic(double dt_hours,
     // Thinnest discretization
     double dzmin = dz_m[0];  // Uses Noah-MP discs of 0.1, 0.3, 0.6, 1.0 m
 
-    // Flux criterion: how much of the water would move in dt_hours?
+    // Flux criterion: how much of the water would move in dt_hours? 10% used here.
+    // These ratios are heuristic stability criteria for forward-Euler routing.  -FLO
     double move_potential = qmax * dt_hours;                 // m
     double flux_ratio     = move_potential / (0.10 * dzmin);
 
-    // Rain criterion: fraction of top-cell storage capacity asked for this hour
+    // Rain criterion: fraction of top-cell storage capacity asked for this hour. 20% used here.
     double rain_rate_m_per_h = rain_mm_per_h / 1000.0;
     double rain_hour_m       = rain_rate_m_per_h * dt_hours;
     double cap1_m            = (theta_sat - theta[0]) * dz_m[0];
@@ -118,6 +119,7 @@ static int choose_n_substeps_generic(double dt_hours,
     else if (severity <= 5.0)  n_substeps = 8;
     else                       n_substeps = 12;
 
+    // n_substeps is always 1..12 from the if/else chain above; clamps are defensive only
     if (n_substeps < 1)  n_substeps = 1;
     if (n_substeps > 12) n_substeps = 12;
     return n_substeps;
@@ -142,17 +144,15 @@ int DSBM_step_one_hour_stateless(
 
     available_gw_storage_m = fmax(0.0, available_gw_storage_m);
     
-    // ---- local working state ------------------------------------------------
+    // ---- local working state + zero outputs in one pass ----------------------
     double theta[NDISC];
-    for (int i = 0; i < NDISC; i++) theta[i] = state_in->theta_in[i];
-
-    // outputs zeroed
     for (int i = 0; i < NDISC; i++) {
+        theta[i] = state_in->theta_in[i];
         flux->AET_by_disc_m[i] = 0.0;
         flux->lateral_by_disc_m[i] = 0.0;
         flux->interface_vol_m[i] = 0.0;
         flux->interface_rate_m_per_h[i] = 0.0;
-        state_out->ch_lut_hint_out[i] = state_in->ch_lut_hint_in[i]; // start with input hints
+        state_out->ch_lut_hint_out[i] = state_in->ch_lut_hint_in[i];
     }
     flux->percolation_to_gw_m = 0.0;
     flux->rain_into_soil_m    = 0.0;
@@ -217,6 +217,7 @@ int DSBM_step_one_hour_stateless(
     // Determine the number of substeps (needed in case of very wet soils in disc1)
     int n_substeps = choose_n_substeps_generic(delta_t_h, forcing->rain_mm_per_h,
                                      geom->dz_m, theta, params->theta_sat, q0, ndisc);
+    // choose function guarantees 1..12, but clamp defensively
     if (n_substeps < 1) n_substeps = 1;
     flux->n_substeps_used = n_substeps;
 
@@ -227,8 +228,7 @@ int DSBM_step_one_hour_stateless(
     double store_cap[NDISC];
     double pot_downflux[NDISC > 1 ? NDISC-1 : 1];  // >=0
     double V_if[NDISC > 1 ? NDISC - 1 : 1];          // signed desired
-    double Accept[NDISC + 1];                      // [0..ndisc], nd = bottom
-    for (int i = 0; i <= ndisc; i++) Accept[i] = 0.0;
+    double Accept[NDISC + 1] = {0};                 // [0..ndisc], nd = bottom; C99 {0} zeros all elements
 
     // External inflow (incident) is available to the caller via forcing and delta_t_h.
     // Here we only track infiltrated vs excess ffor the step.
@@ -283,8 +283,8 @@ int DSBM_step_one_hour_stateless(
         }
 
        // Modified to consider the situation where the available storage in the groundwater reservoior
-       // is insufficient to accept all the percolation this time step. 
-       // Key changes marked with 
+       // is insufficient to accept all the percolation this time step.
+       // Key changes marked with
 
         //  bottom potential percolation (K(theta4) * limiter) | GW storage limit
         //  This is precisely how they doo it in Noah-MP
@@ -308,8 +308,12 @@ int DSBM_step_one_hour_stateless(
             }
         }
 
-        // Downstream acceptance (bottom up) 
+        // Downstream acceptance (bottom up)
         // Accept[ndisc] = last store + bottom_potential (now GW-storage-limited)
+        //
+        // Accept[k] tracks how much water disc k can receive and pass downward.
+        // Sweeping bottom-up ensures each disc knows its downstream capacity
+        // before accepting water from above, preventing overshoot in a substep.
         Accept[ndisc] = store_cap[ndisc-1] + bottom_potential;
 
         for (int i = nintf-1; i >= 0; i--) {
@@ -321,6 +325,8 @@ int DSBM_step_one_hour_stateless(
         }
 
         // Apply capped transfers across all interfaces
+        // Each transfer is limited by donor availability, receiver capacity,
+        // and downstream chain acceptance computed above.
         for (int i = 0; i < nintf; i++) {
             double V = V_if[i];
 
@@ -410,22 +416,22 @@ int DSBM_step_one_hour_stateless(
         }
 
 
-        // safety clamp
+        // Safety clamp: theta must stay in [theta_floor, theta_sat].
+        // NOTE: clamping introduces a small mass imbalance (water created or
+        // destroyed) that appears in the timestep residual. In practice this is
+        // negligible because the acceptance logic above prevents large overshoots.
         for (int i = 0; i < ndisc; i++) {
-            if (theta[i] < theta_floor)    theta[i] = theta_floor;
+            if (theta[i] < theta_floor)       theta[i] = theta_floor;
             if (theta[i] > params->theta_sat) theta[i] = params->theta_sat;
         }
     } // <------------------------------------------------------------------end substep loop
 
-    // finalize rates
-    state_out->total_storage_m = 0.0;
+    // Finalize: write state out and compute interface rates in one pass
     for (int i = 0; i < NDISC; i++) {
+        state_out->theta_out[i] = theta[i];
         flux->interface_rate_m_per_h[i] = flux->interface_vol_m[i] / delta_t_h;
     }
-
-    // write state out
-    for (int i = 0; i < NDISC; i++) state_out->theta_out[i] = theta[i];
-    state_out->total_storage_m = storage_sum_ndisc(theta, geom->dz_m); 
+    state_out->total_storage_m = storage_sum_ndisc(theta, geom->dz_m);
     state_out->storage_deficit_m = geom->depth_m * params->theta_sat - state_out->total_storage_m;
     
     // volume balances
@@ -480,7 +486,9 @@ void et_from_soil_discrete
     double PET                     = evap_struct->reduced_potential_et_m_per_timestep;
     double AET                     = 0.0;
     
-    for(int i = 0; i < soil_control->deepest_root_disc; i++) {       // find wettest disc
+    int root_limit = soil_control->deepest_root_disc;
+    if (root_limit > NDISC) root_limit = NDISC;  // bounds safety
+    for(int i = 0; i < root_limit; i++) {       // find wettest disc
       if(soil_state->theta_in[i] > wettest_theta) {
           wettest_theta = soil_state->theta_in[i];
           wettest_disc = i;

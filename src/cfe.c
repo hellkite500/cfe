@@ -158,37 +158,21 @@ extern void cfe(
     soil_storage_temp_m = soil_reservoir_struct->storage_m;
   }
 
-  //---------------DEBUG
-  int yes_debug_surf_routing = FALSE;
-
-  if (yes_debug_surf_routing)
-  {
-    printf("CFE KERNEL DEBUG:\n");
-    printf("  Surface scheme received: %d (0=GIUH, 1=Nash)\n", surface_runoff_scheme);
-    printf("  Input to surface routing: %.6f\n", flux_surface_runoff_input_to_surface_routing_m);
-
-    if (surface_runoff_scheme == SURF_ROUTE_GIUH)
-    {
-      printf("  GIUH num ordinates: %d\n", num_giuh_ordinates);
-      if (num_giuh_ordinates > 0)
-      {
-        printf("  GIUH ordinate[0]: %.6f\n", giuh_ordinates_arr[0]);
-      }
-    }
-    else
-    {
-      printf("  UNKNOWN surface routing scheme!\n");
-    }
-  }
-  //----------------------
+#if CFE_DEBUG > 1
+  printf("CFE KERNEL DEBUG:\n");
+  printf("  GIUH num ordinates: %d\n", num_giuh_ordinates);
+  if (num_giuh_ordinates > 0)
+    printf("  GIUH ordinate[0]: %.6f\n", giuh_ordinates_arr[0]);
+  printf("  Input to surface routing: %.6f\n", flux_surface_runoff_input_to_surface_routing_m);
+#endif
 
   // ET Demand
   evap_struct->potential_et_m_per_timestep = evap_struct->potential_et_m_per_s * time_step_seconds;
   evap_struct->reduced_potential_et_m_per_timestep = evap_struct->potential_et_m_per_s * time_step_seconds;
 
-  if (isnan(timestep_rainfall_input_m))
-  {
-    printf("NaN timestep input rainfall\n");
+  if (isnan(timestep_rainfall_input_m)) {
+    fprintf(stderr, "WARNING: NaN rainfall input — treating as 0.0\n");
+    timestep_rainfall_input_m = 0.0;
   }
 
   evap_struct->actual_et_from_rain_m_per_timestep = 0.0;
@@ -198,9 +182,12 @@ extern void cfe(
     et_from_rainfall(&timestep_rainfall_input_m, evap_struct);
   }
 
-  volbal_struct->vol_et_from_rain = volbal_struct->vol_et_from_rain + evap_struct->actual_et_from_rain_m_per_timestep;
-  volbal_struct->vol_et_to_atm = volbal_struct->vol_et_to_atm + evap_struct->actual_et_from_rain_m_per_timestep;
-  volbal_struct->volout = volbal_struct->volout + evap_struct->actual_et_from_rain_m_per_timestep;
+  /* vol_et_from_rain: tracks ET by source (rain interception)
+   * vol_et_to_atm:    tracks total ET leaving domain (all sources)
+   * These are intentionally parallel accounting — not double-counting. */
+  volbal_struct->vol_et_from_rain += evap_struct->actual_et_from_rain_m_per_timestep;
+  volbal_struct->vol_et_to_atm    += evap_struct->actual_et_from_rain_m_per_timestep;
+  volbal_struct->volout           += evap_struct->actual_et_from_rain_m_per_timestep;
 
   // if evaporation demand, take from surface retention depth if retention_depth>0, and water is stored there
   
@@ -559,9 +546,6 @@ extern void cfe(
   if (is_fabs_less_than_epsilon(secondary_flux, 1.0e-09) == FALSE)
     printf("problem with nonzero flux point 1\n");
 
-  // GW storage already adjusted above (line 530); this duplicate
-  // subtraction was removed because it caused a 2x baseflow drawdown
-  // and broke the volume balance protocol.
 
   if (surface_runoff_scheme == SURF_ROUTE_GIUH)
   { // Solve the convolution integral ffor this time step
@@ -570,7 +554,8 @@ extern void cfe(
                                                                 giuh_ordinates_arr,
                                                                 giuh_runoff_queue_m_per_timestep_arr);
   }
-//
+
+  // Route lateral flow through the Nash cascade (new use of this function ffor lateral subsurface flow routing -FLO 6/25)
 
   flux_nash_subsurface_lateral_runoff_m = nash_cascade_routing(flux_soil_to_subsurface_lat_m, 0.0, nash_subsurface_params); //<- 0.0 here means no losses.
 

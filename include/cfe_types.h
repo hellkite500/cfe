@@ -182,9 +182,9 @@ typedef struct {
     char output_internal_storages_filename[PATH_FILENAME_STRING_LENGTH];
     char output_volume_balance_filename[PATH_FILENAME_STRING_LENGTH];
     char output_soil_moisture_theta_filename[PATH_FILENAME_STRING_LENGTH];
-    char output_time_standard_format[64];
-    char output_file_delimiter[64];
-    char output_value_format[64];
+    char output_time_standard_format[OPTION_STRING_LENGTH];
+    char output_file_delimiter[OPTION_STRING_LENGTH];
+    char output_value_format[OPTION_STRING_LENGTH];
     char output_path_name[PATH_FILENAME_STRING_LENGTH];
     char output_new_config_filename[PATH_FILENAME_STRING_LENGTH];
 } cfe_options_struct;

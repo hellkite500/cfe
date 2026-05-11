@@ -12,6 +12,15 @@
 #ifndef _VERSION_H
 #define _VERSION_H
 
+/* Integer-based semantic version for preprocessor comparisons.
+ * Use CFE_VERSION_STRING for display; use CFE_VERSION_MAJOR etc. for #if guards. */
+#define CFE_VERSION_MAJOR 3
+#define CFE_VERSION_MINOR 0
+#define CFE_VERSION_PATCH 0
+#define CFE_VERSION_STRING "3.0.0-beta"
+
+/* Legacy float version — retained for config file version detection.
+ * Prefer the integer macros above for new code. */
 #define CFE_VERSION 3.00
 #define CFE_SUBVERSION_STRING "beta"
 

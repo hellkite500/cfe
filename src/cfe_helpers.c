@@ -31,8 +31,8 @@
 #include "soil_helpers.h"  // Brings in codes needed for discrete soil moisture simulation
 #include "soil_config.h"   // THETA_MIN
 
-static double cm_to_m(double x) { return x / 100.0; }
-static double cm_per_h_to_m_per_s(double x) { return (x / 100.0) / 3600.0; }
+static inline double cm_to_m(double x) { return x / 100.0; }
+static inline double cm_per_h_to_m_per_s(double x) { return (x / 100.0) / 3600.0; }
 
 // Helper functions 
 
@@ -85,6 +85,9 @@ static const char* partition_scheme_name(cfe_partition_scheme_t scheme)
 
 // ---------------- Defaults ----------------
 //##############################
+/* NOTE: cfe_parameters_struct uses fixed-size arrays only (no pointers).
+ * This enables safe memset/calloc initialization. If pointers are ever
+ * added, this function and cfe_finalize must be updated accordingly. */
 void set_parameters_defaults_2_1(cfe_parameters_struct* p)
 {
     if (p == NULL) return;
@@ -244,6 +247,9 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
     //============================
     
     // Control parameters
+    // NOTE: When running under BMI (e.g. ngen), the forcing filename is typically
+    // set to "BMI" by the config file — forcings arrive via set_value(), not from
+    // this file path. The standalone driver uses this path to open a CSV forcing file.
     if (strlen(cfg->control_input_forcing_filename) == 0) {
         fprintf(stderr, "ERROR: Missing forcing filename\n");
         return -1;
@@ -590,10 +596,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
         
     }
     // Calculate field capacity moisture content and storage
-    double g_m_per_s2        = GRAVITATIONAL_ACCELERATION_EARTH_m_per_s2;  // from cfe.h
-    double rho_lw_kg_per_m3  = WATER_LIQUID_DENSITY_kg_per_m3;             // from cfe.h  
-    double std_atm_press_Pa  = STANDARD_ATM_PRESS_Pa;                      // from cfe.h
-    double psi_atm_m = std_atm_press_Pa/(g_m_per_s2 * rho_lw_kg_per_m3);
+    double psi_atm_m = STANDARD_ATM_PRESS_Pa /
+                       (GRAVITATIONAL_ACCELERATION_EARTH_m_per_s2 * WATER_LIQUID_DENSITY_kg_per_m3);
     double arg = (p->field_capacity_Pcap_over_Patm * psi_atm_m/p->sat_capillary_head_m);
     p->field_capacity_moisture_content = p->effective_porosity * pow(arg, (-1.0/p->soil_b));
     p->field_capacity_storage_m = p->field_capacity_moisture_content * p->soil_depth_m;
@@ -819,6 +823,8 @@ int cfe_initialize(const cfe_parameters_struct* p,
 
 
     // ---- Subsurface Nash storage (fixed arrays; no malloc) ----
+    // Nsub == MAX_NUM_SUBSURFACE_NASH_CASCADE (2) in practice, so the
+    // ternary always takes the init branch; the zero branch is defensive.
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
         s->nash_subsurface_storage_m[i] = (i < Nsub) ? p->nash_subsurface_init_storage_m[i] : 0.0;
     }
@@ -1042,6 +1048,11 @@ int cfe_step(const cfe_parameters_struct* p,
 
     s->gw_storage_deficit_m = p->gw_max_storage_m - s->gw_storage_m;
     if (s->gw_storage_deficit_m < 0.0) s->gw_storage_deficit_m = 0.0;
+
+    /* TODO: These structs are rebuilt every step from constant parameters.
+     * Consider persisting them in the state struct to avoid per-step copies.
+     * Also: cfe() takes ~30 parameters — encapsulating into fewer structs
+     * would improve the interface. Both are future refactoring targets. */
 
     // 1) Exchange soil parameters (NWM_SOIL_PARAMETERS_STRUCTURE)
     struct NWM_SOIL_PARAMETERS_STRUCTURE nwm = {0};
