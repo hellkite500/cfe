@@ -66,12 +66,7 @@ double calculate_total_storage(const CFE_Model_Context* ctx) {
         total += ctx->state.soil_storage_m;
     }
     
-    // Surface routing storage (Nash or GIUH)
-    if (ctx->options.surface_routing_scheme == SURF_ROUTE_NASH_CASCADE) {
-        for (int i = 0; i < ctx->parameters.nash_surface_N; i++) {
-            total += ctx->state.nash_surface_storage_m[i];
-        }
-    } else if (ctx->options.surface_routing_scheme == SURF_ROUTE_GIUH) {
+    if (ctx->options.surface_routing_scheme == SURF_ROUTE_GIUH) {
         for (int i = 0; i < ctx->parameters.giuh_num_ordinates; i++) {
             total += ctx->state.giuh_queue_m[i];
         }

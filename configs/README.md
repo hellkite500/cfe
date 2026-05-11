@@ -58,15 +58,17 @@ see `CHANGELOG.md` for the full v2→v3 name mapping.
 | `expon`<sup>\*</sup> | `gw_discharge_exponent` | `gw_discharge_exponent` | - | GW discharge exponent |
 | `gw_storage` | `state_gw_reservoir_init_storage_m` | — | m | Initial GW storage |
 
-### Surface Routing Parameters
+### GIUH Surface Routing Parameters
 
-| v2 Config Key | v3 Config Key | BMI Name | Units | Description |
-|--------------|--------------|----------|-------|-------------|
-| `surface_runoff_scheme` | `surface_routing_scheme_name` | — | — | `GIUH` or `NASH_CASCADE` |
-| `N_nash_surface` | `surface_routing_num_nash_reservoirs` | — | — | Number of Nash reservoirs |
-| `K_nash_surface`<sup>\*</sup> | `surface_routing_nash_reservoir_time_constant_k` | — | h-1 | Nash time constant |
-| `Kinf_nash_surface`<sup>\*</sup> | `surface_nash_cascade_infil_rate_time_const_Kinf` | `surface_nash_Kinf` | h-1 | Runon infiltration rate |
-| `retention_depth_nash_surface`<sup>\*</sup> | `surface_nash_cascade_retention_depth_cm` | `surface_nash_retention_depth_m` | m (internal) | Retention depth |
+| v3 Config Key | Units | Description |
+|--------------|-------|-------------|
+| `surface_routing_num_giuh_ordinates` | — | Number of GIUH ordinates (required) |
+| `surface_routing_giuh_ordinates` | - | Comma-separated ordinates summing to 1.0 |
+| `state_surface_routing_init_giuh_convolution_queue_m` | m | Initial convolution queue (one per ordinate) |
+
+> **Deprecated:** `surface_runoff_scheme`, `N_nash_surface`, `K_nash_surface`,
+> `Kinf_nash_surface`, `retention_depth_nash_surface` — accepted in legacy
+> configs with a warning, but Nash Cascade surface routing is no longer available.
 
 ### Subsurface Routing Parameters
 
@@ -97,7 +99,15 @@ see `CHANGELOG.md` for the full v2→v3 name mapping.
 1. **Schaake** (`surface_water_partitioning_scheme=Schaake` or `partitioning_scheme_name=SCHAAKE`)
 2. **Xinanjiang** (`surface_water_partitioning_scheme=Xinanjiang` or `partitioning_scheme_name=XINANJIANG`) — requires the three Xinanjiang parameters listed above.
 
-## Surface Runoff Routing Options
+## Surface Runoff Routing
 
-1. **GIUH** (`surface_runoff_scheme=GIUH` or `surface_routing_scheme_name=GIUH`) — requires `giuh_ordinates`.
-2. **Nash Cascade** (`surface_runoff_scheme=NASH_CASCADE` or `surface_routing_scheme_name=NASH_CASCADE`) — requires `N_nash_surface` and `K_nash_surface`.
+CFE v3 uses **GIUH** (Geomorphological Instantaneous Unit Hydrograph) as the
+only surface routing method. Requires `surface_routing_num_giuh_ordinates` and
+`surface_routing_giuh_ordinates` in v3 configs.
+
+Legacy v2 configs that specified `surface_runoff_scheme=NASH_CASCADE` are
+accepted with a deprecation warning. If no GIUH ordinates are present, a
+default unit impulse (1 ordinate = 1.0) is used.
+
+> **Note:** Nash Cascade surface routing, retention depth, and runon infiltration
+> were removed in CFE v3 as they did not produce added model skill.

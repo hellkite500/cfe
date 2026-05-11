@@ -704,7 +704,7 @@ void write_all_outputs(int timestep,
     }
 
     if (Q_fptr) {
-        // Convert discharge from m/timestep to m³/s
+        // Convert discharge from m/timestep to mï¿½/s
         double discharge_m3_per_sec = outputs->qout_m *  params->catchment_area_km2 * 1.0e+06/ options->time_step_seconds;
         fprintf(Q_fptr, "%s%s",timestamp_str, delimiter);
         fprintf(Q_fptr, options->output_value_format, discharge_m3_per_sec);
@@ -792,30 +792,11 @@ void cfe_initialize_volume_balance(const cfe_parameters_struct* params,
             if (options->verbosity > 0) {
                 printf("DEBUG: Total GIUH volstart_surface = %.6f\n", volstart_surface);
             }
-        } else {
-            if (options->verbosity > 0) {
-                printf("DEBUG: Volume balance using Nash - nash_surface_N = %d\n", params->nash_surface_N);
-            }
-            for (int i = 0; i < params->nash_surface_N; i++) {
-                if (options->verbosity > 0) {
-                    printf("DEBUG: Adding Nash storage[%d] = %.6f\n", i, state->nash_surface_storage_m[i]);
-                }
-                volstart_surface += state->nash_surface_storage_m[i];
-            }
-            if (options->verbosity > 0) {
-                printf("DEBUG: Total Nash volstart_surface = %.6f\n", volstart_surface);
-            }
         }
-    } 
+    }
     else {
-        if (options->surface_routing_scheme == SURF_ROUTE_GIUH) {
-            for (int i = 0; i < params->giuh_num_ordinates; i++) {
-                volstart_surface += state->giuh_queue_m[i];
-            }
-        } else {
-            for (int i = 0; i < params->nash_surface_N; i++) {
-                volstart_surface += state->nash_surface_storage_m[i];
-            }
+        for (int i = 0; i < params->giuh_num_ordinates; i++) {
+            volstart_surface += state->giuh_queue_m[i];
         }
     }
 
@@ -863,9 +844,10 @@ void write_volume_balance_summary(FILE* output_fptr,
         for (int i = 0; i < MAX_NUM_SURFACE_NASH_CASCADE; i++)
             vol_surface_end += final_state->nash_surface_storage_m[i];
     }
-        
-    double total_AET_vol  = volbal->vol_et_from_rain + volbal->vol_et_from_soil + 
-                            volbal->vol_et_from_retention_depth;
+
+
+    
+    double total_AET_vol  = volbal->vol_et_from_rain + volbal->vol_et_from_soil;
  
     double volstart = volbal->volstart_soil + volbal->volstart_gw + volbal->volstart_surface + volbal->volstart_subsurface;
    
@@ -873,10 +855,11 @@ void write_volume_balance_summary(FILE* output_fptr,
     const char* partition_name = (options->liquid_partitioning_scheme == PARTITION_SCHAAKE) ? "Schaake" : "Xinanjiang";
     const char* surface_name = (options->surface_routing_scheme == SURF_ROUTE_GIUH) ? "GIUH" : "Nash cascade";
         
+    
+
     // GLOBAL VOLUME BALANCE
     double aet_total  = volbal->vol_et_from_rain
-                      + volbal->vol_et_from_soil
-                      + volbal->vol_et_from_retention_depth;
+                      + volbal->vol_et_from_soil;
 
     double qout_total = volbal->vol_out_surface
                       + volbal->vol_out_subsurf_nash         
@@ -898,28 +881,25 @@ void write_volume_balance_summary(FILE* output_fptr,
     }
 
     // SURFACE VOLUME BALANCE
-    double surface_residual = volbal->volstart_surface + volbal->vol_runoff - 
-                              volbal->vol_out_surface - vol_surface_end - 
-                              volbal->vol_runon_infilt - volbal->vol_et_from_retention_depth;
+
+
+    double surface_residual = volbal->volstart_surface + volbal->vol_runoff -
+                              volbal->vol_out_surface - vol_surface_end;
 
     int use_sci_notation = FALSE;
-    
+
     fprintf(output_fptr, "\n************ SURFACE ROUTING VOLUME BALANCE *********************\n");
     if(!use_sci_notation) {
       fprintf(output_fptr, " Initial surface routing storage    = %8.4lf m\n", volbal->volstart_surface);
       fprintf(output_fptr, " Runoff into surface routing        = %8.4lf m\n", volbal->vol_runoff);
       fprintf(output_fptr, " Outflow from surface routing       = %8.4lf m\n", volbal->vol_out_surface);
       fprintf(output_fptr, " Final surface routing storage      = %8.4lf m\n", vol_surface_end);
-      fprintf(output_fptr, " Runon infiltration                 = %8.4lf m\n", volbal->vol_runon_infilt);
-      fprintf(output_fptr, " ET from retention storage          = %8.4lf m\n", volbal->vol_et_from_retention_depth);
       fprintf(output_fptr, " Surface residual                   = %6.4e m\n", surface_residual);
     } else {
       fprintf(output_fptr, " Initial surface routing storage    = %e m\n", volbal->volstart_surface);
       fprintf(output_fptr, " Runoff into surface routing        = %e m\n", volbal->vol_runoff);
       fprintf(output_fptr, " Outflow from surface routing       = %e m\n", volbal->vol_out_surface);
       fprintf(output_fptr, " Final surface routing storage      = %e m\n", vol_surface_end);
-      fprintf(output_fptr, " Runon infiltration                 = %e m\n", volbal->vol_runon_infilt);
-      fprintf(output_fptr, " ET from retention storage          = %e m\n", volbal->vol_et_from_retention_depth);
       fprintf(output_fptr, " Surface residual                   = %6.4e m\n", surface_residual);
     }
     if (fabs(surface_residual) > 1.0e-12) {
@@ -937,16 +917,14 @@ void write_volume_balance_summary(FILE* output_fptr,
         vol_soil_end = final_state->soil_storage_m;
     }
 
-    // SOIL VOLUME BALANCE
-    double soil_residual = volbal->vol_soil_start + volbal->vol_infilt + volbal->vol_runon_infilt -
-                           volbal->vol_soil_to_lat_flow - volbal->vol_to_gw - 
-                           volbal->vol_et_from_soil - vol_soil_end ;
-                           
+    double soil_residual = volbal->vol_soil_start + volbal->vol_infilt -
+                           volbal->vol_soil_to_lat_flow - volbal->vol_to_gw -
+                           volbal->vol_et_from_soil - vol_soil_end;
+
     use_sci_notation = FALSE;
     if(use_sci_notation == TRUE) {
         fprintf(output_fptr, " Initial soil vol.                  = %e m\n", volbal->vol_soil_start);
         fprintf(output_fptr, " Infiltration into soil             = %e m\n", volbal->vol_infilt);
-        fprintf(output_fptr, " Runon Infilt. into soil            = %e m\n", volbal->vol_runon_infilt);
         fprintf(output_fptr, " From soil to lat. flow             = %e m\n", volbal->vol_soil_to_lat_flow);
         fprintf(output_fptr, " From from soil to GW               = %e m\n", volbal->vol_soil_to_gw);
         fprintf(output_fptr, " ET from soil                       = %e m\n", volbal->vol_et_from_soil);
@@ -955,12 +933,11 @@ void write_volume_balance_summary(FILE* output_fptr,
     } else {
         fprintf(output_fptr, " Initial soil vol.                  = %8.4lf m\n", volbal->vol_soil_start);
         fprintf(output_fptr, " Infiltration into soil             = %8.4lf m\n", volbal->vol_infilt);
-        fprintf(output_fptr, " Runon Infilt. into soil            = %8.4lf m\n", volbal->vol_runon_infilt);
         fprintf(output_fptr, " From soil to lat. flow             = %8.4lf m\n", volbal->vol_soil_to_lat_flow);
         fprintf(output_fptr, " From from soil to GW               = %8.4lf m\n", volbal->vol_soil_to_gw);
         fprintf(output_fptr, " ET from soil                       = %8.4lf m\n", volbal->vol_et_from_soil);
         fprintf(output_fptr, " Final soil vol.                    = %8.4lf m\n", vol_soil_end);
-        fprintf(output_fptr, " Soil residual                      = %6.4e m\n", soil_residual);    
+        fprintf(output_fptr, " Soil residual                      = %6.4e m\n", soil_residual);
     }
     if (fabs(soil_residual) > 1.0e-12) {
         fprintf(output_fptr, "!!! WARNING: SOIL CONCEPTUAL RESERVOIR VOLUME BALANCE CHECK FAILED\n");
@@ -1199,7 +1176,6 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     // Surface Routing Parameters (UPDATED FROM MODEL STATE)
     fprintf(hotstart_fptr, "# Surface Routing Parameters\n");
     fprintf(hotstart_fptr, "#===========================\n");
-    fprintf(hotstart_fptr, "surface_routing_scheme_name=%s\n", cfg->surface_routing_scheme_name);
     
     if (string_compare_ignore_case(cfg->surface_routing_scheme_name, "giuh") == 0) {
         fprintf(hotstart_fptr, "surface_routing_num_giuh_ordinates=%d\n", cfg->surface_routing_num_giuh_ordinates);
@@ -1216,22 +1192,8 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
             fprintf(hotstart_fptr, "%.12e", state->giuh_queue_m[i]);
         }
         fprintf(hotstart_fptr, "[m]\n");
-    } else {
-        // Nash cascade
-        fprintf(hotstart_fptr, "surface_routing_num_nash_reservoirs=%d[]\n", cfg->surface_routing_num_nash_reservoirs);
-        fprintf(hotstart_fptr, "surface_routing_nash_reservoir_time_constant_k=%.6f[h-1]\n", cfg->surface_routing_nash_K);
-        fprintf(hotstart_fptr, "#----- Initial surface Nash cascade storage (UPDATED FROM MODEL STATE)\n");
-        fprintf(hotstart_fptr, "state_surface_routing_init_nash_cascade_storage_m=");
-        for (int i = 0; i < cfg->surface_routing_num_nash_reservoirs; i++) {
-            if (i > 0) fprintf(hotstart_fptr, ",");
-            fprintf(hotstart_fptr, "%.12e", state->nash_surface_storage_m[i]);
-        }
-        fprintf(hotstart_fptr, "[m]\n");
-        fprintf(hotstart_fptr, "surface_nash_cascade_infil_rate_time_const_Kinf=%.6f[h-1]\n", 
-                cfg->surface_nash_cascade_infil_rate_const_Kinf);
-        fprintf(hotstart_fptr, "surface_nash_cascade_retention_depth_cm=%.4f[cm]\n", 
-                cfg->surface_nash_cascade_retention_depth_cm);
-    }
+      }
+//
     fprintf(hotstart_fptr, "\n");
 
     // Subsurface Lateral Flow Parameters (UPDATED FROM MODEL STATE)

@@ -109,22 +109,12 @@ typedef struct CFE_CONFIG
     int    surface_routing_num_giuh_ordinates;  
     double surface_routing_giuh_ordinates[MAX_NUM_GIUH_ORDINATES];   // much longer than needed, typ. < 10 ordinates
     char   surface_routing_giuh_ordinates_units[UNIT_STRING_LENGTH];
-    int    surface_routing_num_nash_reservoirs;
     double surface_routing_init_giuh_convolution_queue_m[MAX_NUM_GIUH_ORDINATES];
     char   surface_routing_init_giuh_convolution_queue_units[UNIT_STRING_LENGTH];
-    double surface_routing_nash_cascade_init_storage_m[6];
-    char   surface_routing_nash_cascade_init_storage_units[UNIT_STRING_LENGTH];
-    double surface_routing_nash_K; 
-    char   surface_routing_nash_units[UNIT_STRING_LENGTH]; 
-    double surface_nash_cascade_infil_rate_const_Kinf;
-    char   surface_nash_cascade_infil_rate_const_Kinf_units[UNIT_STRING_LENGTH];
-    double surface_nash_cascade_retention_depth_cm;
-    char   surface_nash_cascade_retention_depth_cm_units[UNIT_STRING_LENGTH];
     double soil_Xinanjiang_tension_water_inflection_point;
     double soil_Xinanjiang_tension_water_soil_moist_distrib_exponent;
     double soil_Xinanjiang_free_water_soil_moist_distrib_exponent;
-    
-    // Output configuration fields
+
     char   output_path_name[PATH_FILENAME_STRING_LENGTH];
     char   output_status_warnings_filename[PATH_FILENAME_STRING_LENGTH];
     char   output_internal_fluxes_filename[PATH_FILENAME_STRING_LENGTH];

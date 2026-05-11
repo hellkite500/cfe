@@ -23,7 +23,6 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         "state_gw_storage_m",
         "state_current_timestep",
         "state_soil_moisture_theta",
-        "state_nash_surface_storage",
         "state_nash_subsurface_storage",
         "state_giuh_queue",
         "config_simulate_discrete_soil_moisture",
@@ -53,9 +52,8 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         fixture->expected_grid_ids[i] = 0;
     /* array outputs have non-zero grid ids */
     fixture->expected_grid_ids[9]  = 1;  /* state_soil_moisture_theta */
-    fixture->expected_grid_ids[10] = 2;  /* state_nash_surface_storage */
-    fixture->expected_grid_ids[11] = 3;  /* state_nash_subsurface_storage */
-    fixture->expected_grid_ids[12] = 4;  /* state_giuh_queue */
+    fixture->expected_grid_ids[10] = 2;  /* state_nash_subsurface_storage */
+    fixture->expected_grid_ids[11] = 3;  /* state_giuh_queue */
 
     register_bmi_cfe(fixture->bmi_model);
 

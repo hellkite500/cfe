@@ -120,7 +120,6 @@ struct EVAPOTRANSPIRATION_STRUCTURE {
     double potential_et_m_per_timestep;
     double reduced_potential_et_m_per_timestep;
     double actual_et_from_rain_m_per_timestep;
-    double actual_et_from_retention_depth_m_per_timestep;
     double actual_et_from_soil_m_per_timestep;
     double actual_et_m_per_timestep;
 };
@@ -171,8 +170,6 @@ extern void Xinanjiang_partitioning_scheme
 
 extern void et_from_rainfall(double *timestep_rainfall_input_m, evapotranspiration_structure *et_struct);
 
-extern void et_from_retention_depth(struct NASH_CASCADE_PARAMETERS_STRUCTURE *nash_surface_params,
-				    evapotranspiration_structure *et_struct);
 
 extern void et_from_soil
     (
@@ -204,7 +201,6 @@ extern void cfe(
         double *giuh_ordinates_arr,
         double *giuh_runoff_queue_m_per_timestep_arr,
         double *nash_lateral_runoff_m_ptr,
-        struct NASH_CASCADE_PARAMETERS_STRUCTURE *nash_surface_params,
         struct NASH_CASCADE_PARAMETERS_STRUCTURE *nash_subsurface_params,
         struct EVAPOTRANSPIRATION_STRUCTURE *evap_struct,
         double *Qout_m_ptr,

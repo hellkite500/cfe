@@ -24,7 +24,9 @@
 //   - Modified to optionally replace surface routing GIUH with Nash Cascade, adding the ability to simulate
 //     retention depth and runon/channel infiltration by Ahmad Jan Khattak, May 2024.
 //   - Refactored to use the same Nash Cascade routing ffor both surface and subsurface routing, FLO 6/25
-//
+//   - Retention depth and runon/channel infiltration added more parameters and no more model skill.
+//     Nash cascade surface routing scheme, retention, and infiltration losses from surface Nash cascade
+//     removed by FLO 5/26. (the sake of parsimony)
 //
 //  Description:
 //    The CFE model is a simplified conceptual model designed to emulate as closely as possible the
@@ -45,9 +47,7 @@
 //    - pass soil water to deep groundwater and to lateral subsurface flow using a field capacity threshold
 //    - route surface water to the catchment outlet using:
 //        - a geomorphic instantaneous unit hydrograph, or other unit hydrograph
-//                                -or-
-//        - Nash Cascade with optional retention depth and runon/channel infiltration losses
-//    - route shallow lateral subsurface flow to the catchment outlet using GIUH or other UH
+//    - route shallow lateral subsurface flow to the catchment outlet using 2-reservoir Nash cascade
 //    - manage deep groundwater storage and simulate base flow
 //
 //  The CFE model uses methods identical to the WRF-Hydro based NWM (versions 3.1 and earlier) to simulate
@@ -72,7 +72,7 @@
 //
 //   Version history:
 //   2.1  July, 2025, Modified to read/parse keyword based input config file, prototyped model definition file.
-//   3.0  August, 2025, Mofified to include discretized stateless soil moisture balance model that solves
+//   3.0  August, 2025, Modified to include discretized stateless soil moisture balance model that solves
 //        soil moisture at Noah-MP discretizations (top-down) of 0.1, 0.3, 0.6, and 1.0 m
 // mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
 extern void cfe(
@@ -94,7 +94,6 @@ extern void cfe(
     double *giuh_ordinates_arr,
     double *giuh_runoff_queue_m_per_timestep_arr,
     double *flux_nash_subsurface_lateral_runoff_m_ptr,
-    struct NASH_CASCADE_PARAMETERS_STRUCTURE *nash_surface_params,
     struct NASH_CASCADE_PARAMETERS_STRUCTURE *nash_subsurface_params,
     struct EVAPOTRANSPIRATION_STRUCTURE *evap_struct,
     double *Qout_m_ptr,
@@ -176,11 +175,6 @@ extern void cfe(
         printf("  GIUH ordinate[0]: %.6f\n", giuh_ordinates_arr[0]);
       }
     }
-    else if (surface_runoff_scheme == SURF_ROUTE_NASH_CASCADE)
-    {
-      printf("  Nash surface params available: %s\n", nash_surface_params ? "YES" : "NO");
-      printf("  (Nash parameters not shown in debug)\n");
-    }
     else
     {
       printf("  UNKNOWN surface routing scheme!\n");
@@ -209,20 +203,20 @@ extern void cfe(
   volbal_struct->volout = volbal_struct->volout + evap_struct->actual_et_from_rain_m_per_timestep;
 
   // if evaporation demand, take from surface retention depth if retention_depth>0, and water is stored there
-  evap_struct->actual_et_from_retention_depth_m_per_timestep = 0.0;
+  
 
-  if (nash_surface_params->nash_storage != NULL &&  // only possible ffor Nash cascade surface routing
-      nash_surface_params->retention_depth > 0.0 && // only possible iff surface has retention depth
-      nash_surface_params->nash_storage[0] > 0.0 && // only possible iff water exists in retention storage
-      evap_struct->reduced_potential_et_m_per_timestep > 0.0)
-  {
-    et_from_retention_depth(nash_surface_params, evap_struct);
-  }
-
-  volbal_struct->vol_et_from_retention_depth += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-  volbal_struct->vol_et_to_atm += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-  volbal_struct->volout += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-  volbal_struct->vol_out_surface += evap_struct->actual_et_from_retention_depth_m_per_timestep;
+//  if (nash_surface_params->nash_storage != NULL &&  // only possible ffor Nash cascade surface routing
+//      nash_surface_params->retention_depth > 0.0 && // only possible iff surface has retention depth
+//      nash_surface_params->nash_storage[0] > 0.0 && // only possible iff water exists in retention storage
+//      evap_struct->reduced_potential_et_m_per_timestep > 0.0)
+//  {
+//    et_from_retention_depth(nash_surface_params, evap_struct);
+//  }
+//
+//  volbal_struct->vol_et_from_retention_depth += evap_struct->actual_et_from_retention_depth_m_per_timestep;
+//  volbal_struct->vol_et_to_atm += evap_struct->actual_et_from_retention_depth_m_per_timestep;
+//  volbal_struct->volout += evap_struct->actual_et_from_retention_depth_m_per_timestep;
+//  volbal_struct->vol_out_surface += evap_struct->actual_et_from_retention_depth_m_per_timestep;
 
   evap_struct->actual_et_from_soil_m_per_timestep = 0.0;
 
@@ -236,6 +230,7 @@ extern void cfe(
     }
     soil_reservoir_storage_deficit_m = (NWM_soil_params_struct.smcmax * NWM_soil_params_struct.D - soil_reservoir_struct->storage_m);
   }
+// are we missing an else condition here, or in the case of DSBM is ET demand taken from soil elsewhere in the code? -FLO
 
   if (0.0 < timestep_rainfall_input_m) // it's raining
   {
@@ -463,8 +458,8 @@ extern void cfe(
   volbal_struct->vol_et_to_atm = volbal_struct->vol_et_to_atm + evap_struct->actual_et_from_soil_m_per_timestep;
   volbal_struct->volout = volbal_struct->volout + evap_struct->actual_et_from_soil_m_per_timestep;
 
+
   evap_struct->actual_et_m_per_timestep = evap_struct->actual_et_from_rain_m_per_timestep +
-                                          evap_struct->actual_et_from_retention_depth_m_per_timestep +
                                           evap_struct->actual_et_from_soil_m_per_timestep;
 
   //-- NEW DSBM
@@ -575,43 +570,7 @@ extern void cfe(
                                                                 giuh_ordinates_arr,
                                                                 giuh_runoff_queue_m_per_timestep_arr);
   }
-  else if (surface_runoff_scheme == SURF_ROUTE_NASH_CASCADE) // Solve the Nash cascade flows ffor this time step
-  {
-    // Debug with correct field names:
-    // printf("NASH DEBUG: input=%.6f\n", flux_surface_runoff_input_to_surface_routing_m);
-
-    double deficit_for_routing_m = 0.0;
-    if (yes_simulate_discrete_soil_moisture)
-    {
-      deficit_for_routing_m = soil_state_out->storage_deficit_m;
-    }
-    else
-    {
-      deficit_for_routing_m = soil_reservoir_storage_deficit_m;
-    }
-
-    flux_direct_runoff_to_channel_m = nash_cascade_routing(flux_surface_runoff_input_to_surface_routing_m,
-                                                           deficit_for_routing_m,
-                                                           nash_surface_params);
-
-    // printf("NASH DEBUG: output=%.6f\n", flux_direct_runoff_to_channel_m);
-
-    if (!yes_simulate_discrete_soil_moisture)
-    {
-      soil_reservoir_struct->storage_m += nash_surface_params->runon_infiltration;
-      soil_reservoir_storage_deficit_m -= nash_surface_params->runon_infiltration;
-      volbal_struct->vol_runon_infilt += nash_surface_params->runon_infiltration;
-    }
-    else
-    {
-      // For DSBM, runon infiltration should go through the discrete soil system
-      // This may need additional DSBM function calls to handle channel losses properly
-      volbal_struct->vol_runon_infilt += nash_surface_params->runon_infiltration;
-      // TODO: Route nash_surface_params->runon_infiltration through DSBM  put it in next time step!
-    }
-  }
-
-  // Route lateral flow through the Nash cascade (new use of this function ffor lateral subsurface flow routing -FLO 6/25)
+//
 
   flux_nash_subsurface_lateral_runoff_m = nash_cascade_routing(flux_soil_to_subsurface_lat_m, 0.0, nash_subsurface_params); //<- 0.0 here means no losses.
 
@@ -977,34 +936,6 @@ void et_from_rainfall(double *timestep_rainfall_input_m, struct EVAPOTRANSPIRATI
   }
 }
 
-// ##############################################################
-// ###########   ET FROM SURFACE RETENTION DEPTH   ##############
-// ##############################################################
-void et_from_retention_depth(struct NASH_CASCADE_PARAMETERS_STRUCTURE *nash_surface_params,
-                             struct EVAPOTRANSPIRATION_STRUCTURE *et_struct)
-{
-  // NJF try not to use nash_storage iff it hasn't been initialized...
-  if (nash_surface_params->nash_storage == NULL)
-    return;
-
-  if (et_struct->reduced_potential_et_m_per_timestep >= nash_surface_params->nash_storage[0])
-  {
-    et_struct->actual_et_from_retention_depth_m_per_timestep = nash_surface_params->nash_storage[0];
-    nash_surface_params->nash_storage[0] = 0.0;
-  }
-  else
-  {
-    et_struct->actual_et_from_retention_depth_m_per_timestep = et_struct->reduced_potential_et_m_per_timestep;
-    // et_struct->reduced_potential_et_m_per_timestep = 0.0;
-    nash_surface_params->nash_storage[0] -= et_struct->actual_et_from_retention_depth_m_per_timestep;
-  }
-
-  et_struct->reduced_potential_et_m_per_timestep -= et_struct->actual_et_from_retention_depth_m_per_timestep;
-}
-
-// ##############################################################
-// ####################   ET FROM SOIL   ########################
-// ##############################################################
 void et_from_soil(struct CONCEPTUAL_RESERVOIR_STRUCTURE *soil_res,
                   struct EVAPOTRANSPIRATION_STRUCTURE *et_struct,
                   struct NWM_SOIL_PARAMETERS_STRUCTURE *soil_parms)

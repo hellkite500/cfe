@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include "parser_helpers.h"
 #include "cfe_config.h"
+#include "cfe.h"  /* physics constants: GRAVITATIONAL_ACCELERATION_EARTH_m_per_s2, etc. */
 
 // Function to trim whitespace from a string
 //###################
@@ -224,7 +225,7 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
     int yes_has_Ksat                        = FALSE;
     int yes_has_satpsi                      = FALSE;
     int yes_has_porosity                    = FALSE;
-    int yes_has_wilting_point               = FALSE;
+    int yes_has_wilting_point               = FALSE;  // retained ffor backward compatibility with CFE versions < 3 -FLO
     int yes_has_slop                        = FALSE;
     int yes_has_alpha_fc                    = FALSE;
     int yes_has_gw_max_storage              = FALSE;
@@ -234,12 +235,16 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
     int yes_has_subsurface_nash_K           = FALSE;
     int yes_has_nash_storage_subsurface     = FALSE;
     int yes_has_soil_K_to_lateral_flow      = FALSE;
-    int yes_has_surface_routing_scheme      = FALSE;
-    int yes_has_num_surface_nash_reservoirs = FALSE;
-    int yes_has_surface_routing_nash_K      = FALSE;
-    int yes_has_nash_surface_storage        = FALSE;
-    int yes_has_surface_nash_Kinf           = FALSE;
-    int yes_has_surf_retention_depth        = FALSE;
+
+// These checks were deleted in CFE 3 because the added parameters did not produce added model skill
+// partly because of strong parameter interaction, but mostly because they aren't useful -FLO
+//    int yes_has_surface_routing_scheme      = FALSE;
+//    int yes_has_num_surface_nash_reservoirs = FALSE;
+//    int yes_has_surface_routing_nash_K      = FALSE;
+//    int yes_has_nash_surface_storage        = FALSE;
+//    int yes_has_surface_nash_Kinf           = FALSE;
+//    int yes_has_surf_retention_depth        = FALSE;
+
     int yes_has_partitioning_scheme_name    = FALSE;
     int yes_has_xinanjiang_a                = FALSE;
     int yes_has_xinanjiang_b                = FALSE;
@@ -249,11 +254,15 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
     int yes_has_verbosity                   = FALSE;
 
     // Initialize defaults
+    
     memset(config, 0, sizeof(CFE_CONFIG));
     config->version    = 2.0;  // legacy family that includes GIUH or Nash w/ retention depth
     config->timestep_h = 1.0;  // defaultt timestep ffor CFE versions < 3.0
-    strncpy(config->output_path_name, "./", sizeof(config->output_path_name)); // write output files to ./ by defaultt
-    
+    strncpy(config->output_path_name, "./", sizeof(config->output_path_name)); // write output files to ./ by default
+
+    int yes_has_surface_routing_scheme = TRUE;  // default
+    snprintf(config->surface_routing_scheme_name, sizeof(config->surface_routing_scheme_name), "%s", "giuh");  // default  
+
     // Temporary cache: legacy "soil_storage" line gives theta (dimensionless)
     // We convert to absolute storage later after soil depth is known.
     int    has_init_soil_theta = FALSE;
@@ -304,7 +313,7 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
             config->soil_effective_porosity = atof(value);
             yes_has_porosity = TRUE;
         }
-        else if (string_compare_ignore_case(key, "soil_params.wltsmc") == 0) {
+        else if (string_compare_ignore_case(key, "soil_params.wltsmc") == 0) {   // should retain backward compatibility with CFE versions < 3 -FLO
             config->soil_wilting_point_moisture_content = atof(value);
             yes_has_wilting_point = TRUE;
         }
@@ -349,33 +358,9 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
             config->soil_reservoir_rate_const_to_subsurface_lateral_flow = atof(value);
             yes_has_soil_K_to_lateral_flow = TRUE;
         }
-        else if (string_compare_ignore_case(key, "surface_runoff_scheme") == 0) {
-            strncpy(config->surface_routing_scheme_name, value,
-                    sizeof(config->surface_routing_scheme_name) - 1);
-            config->surface_routing_scheme_name[sizeof(config->surface_routing_scheme_name) - 1] = '\0';
-            yes_has_surface_routing_scheme = TRUE;
-        }
-        else if (string_compare_ignore_case(key, "N_nash_surface") == 0) {
-            config->surface_routing_num_nash_reservoirs = atoi(value);
-            yes_has_num_surface_nash_reservoirs = TRUE;
-        }
-        else if (string_compare_ignore_case(key, "K_nash_surface") == 0) {
-            config->surface_routing_nash_K = atof(value);
-            yes_has_surface_routing_nash_K = TRUE;
-        }
-        else if (string_compare_ignore_case(key, "nash_storage_surface") == 0) {
-            parse_double_array(value, config->surface_routing_nash_cascade_init_storage_m, 6);
-            yes_has_nash_surface_storage = TRUE;
-        }
-        else if (string_compare_ignore_case(key, "Kinf_nash_surface") == 0) {
-            config->surface_nash_cascade_infil_rate_const_Kinf = atof(value);
-            yes_has_surface_nash_Kinf = TRUE;
-        }
-        else if (string_compare_ignore_case(key, "retention_depth_nash_surface") == 0) {
-            // Expecting meters; convert to cm
-            config->surface_nash_cascade_retention_depth_cm = atof(value) * 100.0;
-            yes_has_surf_retention_depth = TRUE;
-        }
+//#####################################
+//
+
         else if (string_compare_ignore_case(key, "surface_water_partitioning_scheme") == 0) {
             strncpy(config->partitioning_scheme_name, value,
                     sizeof(config->partitioning_scheme_name) - 1);
@@ -406,11 +391,28 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
             config->verbosity = atoi(value);
             yes_has_verbosity = TRUE;
         }
-        // v2-only keys accepted for backward compatibility
+        else if (string_compare_ignore_case(key, "giuh_ordinates") == 0) {
+            int count = parse_double_array(value, config->surface_routing_giuh_ordinates,
+                                           MAX_NUM_GIUH_ORDINATES);
+            if (count > 0) {
+                config->surface_routing_num_giuh_ordinates = count;
+                for (int i = 0; i < count; i++)
+                    config->surface_routing_init_giuh_convolution_queue_m[i] = 0.0;
+            }
+        }
+        // v2-only keys accepted for backward compatibility (warn but don't fail)
         else if (string_compare_ignore_case(key, "soil_params.expon") == 0 ||
                  string_compare_ignore_case(key, "soil_params.expon_secondary") == 0 ||
-                 string_compare_ignore_case(key, "nsubsteps_nash_surface") == 0) {
-            // Silently accepted — v2 reservoir exponents and Nash sub-stepping
+                 string_compare_ignore_case(key, "refkdt") == 0 ||
+                 string_compare_ignore_case(key, "debug") == 0 ||
+                 string_compare_ignore_case(key, "nsubsteps_nash_surface") == 0 ||
+                 string_compare_ignore_case(key, "surface_runoff_scheme") == 0 ||
+                 string_compare_ignore_case(key, "N_nash_surface") == 0 ||
+                 string_compare_ignore_case(key, "K_nash_surface") == 0 ||
+                 string_compare_ignore_case(key, "nash_storage_surface") == 0 ||
+                 string_compare_ignore_case(key, "Kinf_nash_surface") == 0 ||
+                 string_compare_ignore_case(key, "retention_depth_nash_surface") == 0) {
+            fprintf(stderr, "WARNING: Ignoring deprecated v2 config key: %s (not supported in CFE v3)\n", key);
         }
         else {
             fprintf(stderr, "WARNING: Unknown legacy keyword: %s\n", key);
@@ -452,9 +454,28 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
         fprintf(stderr, "ERROR: Missing soil_params.smcmax (porosity)\n");
         return -1;
     }
-    if (!yes_has_wilting_point) {
-        fprintf(stderr, "ERROR: Missing soil_params.wltsmc (wilting point)\n");
+    if (!yes_has_wilting_point) {    // check and make sure we've got the parameters needed to calculate it -FLO new ffor CFE 3
+        if (yes_has_soil_params_bb && yes_has_satpsi && yes_has_porosity) {
+        
+            // new with CFE version 3 - Calculate using 15 atm capillary pressure -FLO
+            double capillary_pressure_wilting_atm = 15.0;  // atmospheres (positive)
+        
+            // Convert to meters of water
+            double g_m_per_s2 = GRAVITATIONAL_ACCELERATION_EARTH_m_per_s2;
+            double rho_lw_kg_per_m3 = WATER_LIQUID_DENSITY_kg_per_m3;
+            double std_atm_press_Pa = STANDARD_ATM_PRESS_Pa;
+            double psi_atm_m = std_atm_press_Pa / (g_m_per_s2 * rho_lw_kg_per_m3);
+            double capillary_pressure_wilting_m = capillary_pressure_wilting_atm * psi_atm_m;  // positive, meters of water
+        
+            // Clapp-Hornberger: theta = theta_sat * (psi_sat/psi)^(1/b)
+            config->soil_wilting_point_moisture_content = config->soil_effective_porosity * 
+                pow(config->soil_sat_capillary_head_cm / 100.0 / capillary_pressure_wilting_m, 
+                    (1.0 / config->soil_Clapp_Hornberger_exponent_b));
+            yes_has_wilting_point = TRUE;
+        } else {
+            fprintf(stderr, "ERROR: Unable to calculate wilting point - missing CH soil parameters\n");
         return -1;
+        }
     }
     if (!yes_has_alpha_fc) {
         fprintf(stderr, "ERROR: Missing alpha_fc\n");
@@ -497,20 +518,8 @@ int parse_config_legacy_format(const char* filename, CFE_CONFIG* config)
         }
     }
 
-    // Surface routing scheme presence checks (no numeric validation here)
-    if (yes_has_surface_routing_scheme && 
-        string_compare_ignore_case(config->surface_routing_scheme_name, "NASH_CASCADE") == 0) {
-            if (!yes_has_num_surface_nash_reservoirs) {
-                fprintf(stderr, "ERROR: Missing N_nash_surface\n");
-                return -1;
-            }
-            if (!yes_has_surface_routing_nash_K) {
-                fprintf(stderr, "ERROR: Missing K_nash_surface\n");
-                return -1;
-            }
-            // Optional: nash_storage_surface, Kinf, retention depth presence are not strictly required
-            // ffor all runs, so doo not error-out here.
-    }
+//
+//##################################
 
     // Need these three ffor converting legacy soil_storage (theta) to absolute storage
     if (has_init_soil_theta) {
@@ -552,9 +561,6 @@ int parse_cfe_config_ge_v2_1(const char* filename, CFE_CONFIG* config) {
     PARSER_ARRAY_COUNTS array_counts = {0};
     
     memset(config, 0, sizeof(CFE_CONFIG));
-    for (int i = 0; i < MAX_NUM_SURFACE_NASH_CASCADE; i++) {
-        config->surface_routing_nash_cascade_init_storage_m[i] = 0.0;
-    }
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {  // or whatever max for subsurface
         config->subsurface_routing_nash_cascade_init_storage_m[i] = 0.0;
     }
@@ -563,6 +569,8 @@ int parse_cfe_config_ge_v2_1(const char* filename, CFE_CONFIG* config) {
     char value_part[768];
     char units[64];
 
+    snprintf(config->surface_routing_scheme_name, sizeof(config->surface_routing_scheme_name), "%s", "giuh");  // default and only option
+    
     while (fgets(line, sizeof(line), file)) {
         // Skip empty lines and comments
         if (line[0] == '\n' || line[0] == '#') continue;
@@ -683,9 +691,10 @@ int parse_cfe_config_ge_v2_1(const char* filename, CFE_CONFIG* config) {
         else if (string_compare_ignore_case(keyword, "soil_effective_porosity") == 0) {
             config->soil_effective_porosity = atof(value_part);
         }
-        else if (string_compare_ignore_case(keyword, "soil_wilting_point_moisture_content") == 0) {
-            config->soil_wilting_point_moisture_content = atof(value_part);
-        }
+//   Because this is not an input parameter ffor CFE versions >= 3, it is appropriately calculated from Clapp-Hornberger relation
+//        else if (string_compare_ignore_case(keyword, "soil_wilting_point_moisture_content") == 0) {
+//            config->soil_wilting_point_moisture_content = atof(value_part);
+//        }
         else if (string_compare_ignore_case(keyword, "soil_field_capacity_Pcap_over_Patm_0_1") == 0) {
             config->soil_field_capacity_Pcap_over_Patm_0_1 = atof(value_part);
         }
@@ -775,15 +784,6 @@ int parse_cfe_config_ge_v2_1(const char* filename, CFE_CONFIG* config) {
             }
             snprintf(config->partitioning_scheme_name, sizeof(config->partitioning_scheme_name), "%s", temp_value);
         }
-        else if (string_compare_ignore_case(keyword, "surface_routing_scheme_name") == 0) {
-            // Convert to lowercase for consistent comparison
-            char temp_value[sizeof(config->surface_routing_scheme_name)];
-            snprintf(temp_value, sizeof(temp_value), "%s", value_part);
-            for (int i = 0; temp_value[i]; i++) {
-                temp_value[i] = tolower(temp_value[i]);
-            }
-            snprintf(config->surface_routing_scheme_name, sizeof(config->surface_routing_scheme_name), "%s", temp_value);
-        }
         else if (string_compare_ignore_case(keyword, "surface_routing_num_giuh_ordinates") == 0) {
             config->surface_routing_num_giuh_ordinates = atoi(value_part);
         }
@@ -803,29 +803,8 @@ int parse_cfe_config_ge_v2_1(const char* filename, CFE_CONFIG* config) {
                      sizeof(config->surface_routing_init_giuh_convolution_queue_units),
                      "%s", units);
         }
-        else if (string_compare_ignore_case(keyword, "surface_routing_num_nash_reservoirs") == 0) {
-            config->surface_routing_num_nash_reservoirs = atoi(value_part);
-        }
-        else if (string_compare_ignore_case(keyword, "state_surface_routing_init_nash_cascade_storage_m") == 0) {
-            array_counts.num_surf_nash_storages_read = parse_double_array(value_part, 
-                                                               config->surface_routing_nash_cascade_init_storage_m, 
-                                                               MAX_NUM_SURFACE_NASH_CASCADE);
-            snprintf(config->surface_routing_nash_cascade_init_storage_units, 
-                     sizeof(config->surface_routing_nash_cascade_init_storage_units),
-                     "%s", units);
-        }
-        else if (string_compare_ignore_case(keyword, "surface_routing_nash_reservoir_time_constant_k") == 0) {
-            config->surface_routing_nash_K = atof(value_part);
-            snprintf(config->surface_routing_nash_units, sizeof(config->surface_routing_nash_units), "%s", units);
-        }
-        else if (string_compare_ignore_case(keyword, "surface_nash_cascade_infil_rate_time_const_Kinf") == 0) {
-            config->surface_nash_cascade_infil_rate_const_Kinf = atof(value_part);
-            snprintf(config->surface_nash_cascade_infil_rate_const_Kinf_units, sizeof(config->surface_nash_cascade_infil_rate_const_Kinf_units), "%s", units);
-        }
-        else if (string_compare_ignore_case(keyword, "surface_nash_cascade_retention_depth_cm") == 0) {
-            config->surface_nash_cascade_retention_depth_cm = atof(value_part);
-            snprintf(config->surface_nash_cascade_retention_depth_cm_units, sizeof(config->surface_nash_cascade_retention_depth_cm_units), "%s", units);
-        }
+
+
         else if (string_compare_ignore_case(keyword, "partitioning_Xinanjiang_tension_water_inflection_point") == 0) {
             config->soil_Xinanjiang_tension_water_inflection_point = atof(value_part);
         }
@@ -954,71 +933,51 @@ int validate_and_fix_output_format(char* format_str, size_t buffer_size) {
 
 // For each of the initial storages read ensure that the correct number of values was read and applied
 //###########################
-int validate_giuh_nash_arrays(CFE_CONFIG* config, const PARSER_ARRAY_COUNTS* counts) {
-    
-    // Surface Nash cascade validation------------------------
-    if (string_compare_ignore_case(config->surface_routing_scheme_name, "nash_cascade") == 0) {
-        int expected_num = config->surface_routing_num_nash_reservoirs;
-        int num_read = counts->num_surf_nash_storages_read;
-        
-        if (num_read != expected_num) {
-            fprintf(stderr, "ERROR: Expected %d surface Nash storage values, read: %d\n", 
-                    expected_num, num_read);
-            return -1;
-        }
-        // Ensure that there are no negative storages input
-        for (int i = 0; i < expected_num; i++) {
-            if (config->surface_routing_nash_cascade_init_storage_m[i] < 0.0) {
-                fprintf(stderr, "ERROR: Surface Nash storage[%d] cannot be negative: %.6f\n", 
-                        i, config->surface_routing_nash_cascade_init_storage_m[i]);
-                return -1;
-            }
-        } 
-    }
+int validate_giuh_arrays(CFE_CONFIG* config, const PARSER_ARRAY_COUNTS* counts) {
+
     
     // GIUH validation----------------------
-    if (string_compare_ignore_case(config->surface_routing_scheme_name, "giuh") == 0) {
-        int expected_num = config->surface_routing_num_giuh_ordinates;
-        int ordinates_read = counts->num_giuh_ordinates_read;
-        int queue_read = counts->num_giuh_convolution_read;
-        
-        if (ordinates_read != expected_num) {
-            fprintf(stderr, "ERROR: Expected %d GIUH ordinates, read: %d\n", 
-                    expected_num, ordinates_read);
+    int expected_num = config->surface_routing_num_giuh_ordinates;
+    int ordinates_read = counts->num_giuh_ordinates_read;
+    int queue_read = counts->num_giuh_convolution_read;
+    
+    if (ordinates_read != expected_num) {
+        fprintf(stderr, "ERROR: Expected %d GIUH ordinates, read: %d\n", 
+                expected_num, ordinates_read);
+        return -1;
+    }
+    
+    if (queue_read != expected_num) {
+        fprintf(stderr, "ERROR: Expected %d GIUH queue values, read: %d\n", 
+                expected_num, queue_read);
+        return -1;
+    }
+    
+    // Validate GIUH ordinates sum to 1.0 and are non-negative
+    double sum = 0.0;
+    int is_negative = FALSE;
+    for (int i = 0; i < expected_num; i++) {
+        sum += config->surface_routing_giuh_ordinates[i];
+        if(config->surface_routing_giuh_ordinates[i] < 0.0) is_negative = TRUE;
+    }
+    if (fabs(sum - 1.0) > 1e-6) {
+        fprintf(stderr, "ERROR: GIUH ordinates sum to %.6f, must sum to 1.0\n", sum);
+        return -1;
+    }
+    if(is_negative) {
+        fprintf(stderr,"ERROR: negative GIUH ordinate encountered. All ordinates must be positive and sum to 1.0.\n");
+        return -1;
+    }
+    
+    // Check for negative GIUH queue values
+    for (int i = 0; i < expected_num; i++) {
+        if (config->surface_routing_init_giuh_convolution_queue_m[i] < 0.0) {
+            fprintf(stderr, "ERROR: GIUH queue[%d] cannot be negative: %.6f\n", 
+                    i, config->surface_routing_init_giuh_convolution_queue_m[i]);
             return -1;
-        }
-        
-        if (queue_read != expected_num) {
-            fprintf(stderr, "ERROR: Expected %d GIUH queue values, read: %d\n", 
-                    expected_num, queue_read);
-            return -1;
-        }
-        
-        // Validate GIUH ordinates sum to 1.0 and are non-negative
-        double sum = 0.0;
-        int is_negative = FALSE;
-        for (int i = 0; i < expected_num; i++) {
-            sum += config->surface_routing_giuh_ordinates[i];
-            if(config->surface_routing_giuh_ordinates[i] < 0.0) is_negative = TRUE;
-        }
-        if (fabs(sum - 1.0) > 1e-6) {
-            fprintf(stderr, "ERROR: GIUH ordinates sum to %.6f, must sum to 1.0\n", sum);
-            return -1;
-        }
-        if(is_negative) {
-            fprintf(stderr,"ERROR: negative GIUH ordinate encountered. All ordinates must be positive and sum to 1.0.\n");
-            return -1;
-        }
-        
-        // Check for negative GIUH queue values
-        for (int i = 0; i < expected_num; i++) {
-            if (config->surface_routing_init_giuh_convolution_queue_m[i] < 0.0) {
-                fprintf(stderr, "ERROR: GIUH queue[%d] cannot be negative: %.6f\n", 
-                        i, config->surface_routing_init_giuh_convolution_queue_m[i]);
-                return -1;
-            }
         }
     }
+    
     
     // Subsurface Nash validation (always expects 2)-----------------
     int subsurf_read = counts->num_subsurf_nash_storages_read;
@@ -1068,7 +1027,6 @@ void print_config(const CFE_CONFIG* config) {
            config->soil_reservoir_init_discrete_storage_theta[3],
            config->soil_reservoir_init_discrete_storage_theta_units);
     printf("GW max storage: %.3f %s\n", config->gw_reservoir_max_storage_m, config->gw_reservoir_max_storage_units);
-    printf("Surface routing Nash K: %.5f %s\n", config->surface_routing_nash_K, config->surface_routing_nash_units);
     printf("Rainfall partitioning scheme: %s\n", config->partitioning_scheme_name);
     printf("Surface routing scheme: %s\n", config->surface_routing_scheme_name);
     printf("Control discrete soil moisture: %s\n", 

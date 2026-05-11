@@ -60,24 +60,23 @@ static const char* output_var_names[] = {
     "state_current_timestep",                   /*  8 */
 
     /* State arrays (checkpointing) */
-    "state_soil_moisture_theta",                /*  9  — NDISC elements */
-    "state_nash_surface_storage",               /* 10  — N_nash elements */
-    "state_nash_subsurface_storage",            /* 11  — 2 elements */
-    "state_giuh_queue",                         /* 12  — num_giuh elements */
+    "state_soil_moisture_theta",                /*  9  NDISC elements */
+    "state_nash_subsurface_storage",            /* 10  2 elements */
+    "state_giuh_queue",                         /* 11  num_giuh elements */
 
     /* Config / parameters for interpretation */
-    "config_simulate_discrete_soil_moisture",   /* 13 */
-    "param_catchment_area_km2",                 /* 14 */
-    "param_soil_depth_m",                       /* 15 */
-    "param_soil_porosity",                      /* 16 */
+    "config_simulate_discrete_soil_moisture",   /* 12 */
+    "param_catchment_area_km2",                 /* 13 */
+    "param_soil_depth_m",                       /* 14 */
+    "param_soil_porosity",                      /* 15 */
 
     /* Per-timestep volume balance */
-    "timestep_storage_start_m",                 /* 17 */
-    "timestep_input_m",                         /* 18 */
-    "timestep_output_m",                        /* 19 */
-    "timestep_storage_end_m"                    /* 20 */
+    "timestep_storage_start_m",                 /* 16 */
+    "timestep_input_m",                         /* 17 */
+    "timestep_output_m",                        /* 18 */
+    "timestep_storage_end_m"                    /* 19 */
 };
-static const int OUTPUT_VAR_NAME_COUNT = 21;
+static const int OUTPUT_VAR_NAME_COUNT = 20;
 
 /* --- calibration parameters (get_value / set_value / get_value_ptr) --- */
 /* v3 canonical names are listed first; v2 aliases in comments */
@@ -98,12 +97,10 @@ static const char* param_var_names[] = {
     "Xinanjiang_inflection_a",                   /* 13  v2: a_Xinanjiang_inflection_point_parameter */
     "Xinanjiang_shape_b",                        /* 14  v2: b_Xinanjiang_shape_parameter */
     "Xinanjiang_shape_x",                        /* 15  v2: x_Xinanjiang_shape_parameter */
-    "surface_nash_Kinf",                         /* 16  v2: Kinf_nash_surface — per h */
-    "surface_nash_retention_depth_m",            /* 17  v2: retention_depth_nash_surface */
-    "Priestley_Taylor_alpha",                    /* 18  (new in v3) */
-    "soil_ice_imperv_threshold"                  /* 19  (new in v3) */
+    "Priestley_Taylor_alpha",                    /* 16  (new in v3) */
+    "soil_ice_imperv_threshold"                  /* 17  (new in v3) */
 };
-static const int PARAM_VAR_NAME_COUNT = 20;
+static const int PARAM_VAR_NAME_COUNT = 18;
 
 /* Resolve a parameter name (v3 or v2 alias) to a pointer into ctx->parameters.
  * Returns NULL if unrecognized. */
@@ -142,10 +139,6 @@ static double* param_field_ptr(CFE_Model_Context *ctx, const char *name) {
         return &p->xj_tension_b;
     if (strcmp(name, "Xinanjiang_shape_x") == 0                    || strcmp(name, "x_Xinanjiang_shape_parameter") == 0)
         return &p->xj_free_b;
-    if (strcmp(name, "surface_nash_Kinf") == 0                     || strcmp(name, "Kinf_nash_surface") == 0)
-        return &p->surface_Kinf_per_h;
-    if (strcmp(name, "surface_nash_retention_depth_m") == 0        || strcmp(name, "retention_depth_nash_surface") == 0)
-        return &p->surface_retention_depth_m;
     if (strcmp(name, "Priestley_Taylor_alpha") == 0                || strcmp(name, "alpha_pt") == 0)
         return &p->alpha_pt;
     if (strcmp(name, "soil_ice_imperv_threshold") == 0)
@@ -259,9 +252,8 @@ static int Get_output_var_names(Bmi *self, char **names) {
 
 static int Get_var_grid(Bmi *self, const char *name, int *grid) {
     if      (strcmp(name, "state_soil_moisture_theta")    == 0) *grid = 1;
-    else if (strcmp(name, "state_nash_surface_storage")   == 0) *grid = 2;
-    else if (strcmp(name, "state_nash_subsurface_storage")== 0) *grid = 3;
-    else if (strcmp(name, "state_giuh_queue")             == 0) *grid = 4;
+    else if (strcmp(name, "state_nash_subsurface_storage")== 0) *grid = 2;
+    else if (strcmp(name, "state_giuh_queue")             == 0) *grid = 3;
     else *grid = 0;
     return BMI_SUCCESS;
 }
@@ -312,8 +304,7 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "param_soil_porosity") == 0) {
         strcpy(units, "-");
     }
-    else if (strcmp(name, "state_nash_surface_storage")    == 0 ||
-             strcmp(name, "state_nash_subsurface_storage") == 0 ||
+    else if (strcmp(name, "state_nash_subsurface_storage") == 0 ||
              strcmp(name, "state_giuh_queue")              == 0) {
         strcpy(units, "m");
     }
@@ -344,13 +335,11 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
         strcpy(units, "m s-1");  /* stored as m/s in cfe_parameters_struct */
     }
     else if (strcmp(name, "soil_lateral_flow_K") == 0        || strcmp(name, "Klf") == 0 ||
-             strcmp(name, "subsurface_nash_K") == 0           || strcmp(name, "Kn") == 0 ||
-             strcmp(name, "surface_nash_Kinf") == 0           || strcmp(name, "Kinf_nash_surface") == 0) {
+             strcmp(name, "subsurface_nash_K") == 0           || strcmp(name, "Kn") == 0) {
         strcpy(units, "h-1");  /* per-hour rate constants */
     }
     else if (strcmp(name, "soil_saturated_capillary_head") == 0 || strcmp(name, "satpsi") == 0 ||
-             strcmp(name, "gw_max_storage_m") == 0               || strcmp(name, "max_gw_storage") == 0 ||
-             strcmp(name, "surface_nash_retention_depth_m") == 0  || strcmp(name, "retention_depth_nash_surface") == 0) {
+             strcmp(name, "gw_max_storage_m") == 0               || strcmp(name, "max_gw_storage") == 0) {
         strcpy(units, "m");  /* meters */
     }
     else if (strcmp(name, "soil_Clapp_Hornberger_b") == 0    || strcmp(name, "b") == 0 ||
@@ -397,12 +386,6 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
     }
     else if (strcmp(name, "state_soil_moisture_theta") == 0) {
         *nbytes = NDISC * sizeof(double);
-    }
-    else if (strcmp(name, "state_nash_surface_storage") == 0) {
-        if (CONTEXT(self) && CONTEXT(self)->options.surface_routing_scheme == SURF_ROUTE_NASH_CASCADE)
-            *nbytes = CONTEXT(self)->parameters.nash_surface_N * sizeof(double);
-        else
-            *nbytes = 0;
     }
     else if (strcmp(name, "state_nash_subsurface_storage") == 0) {
         *nbytes = 2 * sizeof(double);
@@ -515,19 +498,11 @@ static int Get_value(Bmi *self, const char *name, void *dest) {
         for (int i = 0; i < NDISC; i++)
             d[i] = ctx->state.soil_discrete_storage_theta[i];
     }
-    else if (strcmp(name, "state_nash_surface_storage") == 0) {
-        if (ctx->options.surface_routing_scheme != SURF_ROUTE_NASH_CASCADE)
-            return BMI_FAILURE;
-        for (int i = 0; i < ctx->parameters.nash_surface_N; i++)
-            d[i] = ctx->state.nash_surface_storage_m[i];
-    }
     else if (strcmp(name, "state_nash_subsurface_storage") == 0) {
         for (int i = 0; i < 2; i++)
             d[i] = ctx->state.nash_subsurface_storage_m[i];
     }
     else if (strcmp(name, "state_giuh_queue") == 0) {
-        if (ctx->options.surface_routing_scheme != SURF_ROUTE_GIUH)
-            return BMI_FAILURE;
         for (int i = 0; i < ctx->parameters.giuh_num_ordinates; i++)
             d[i] = ctx->state.giuh_queue_m[i];
     }
@@ -615,7 +590,6 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
 
     /* --- output arrays --- */
     if (strcmp(name, "state_soil_moisture_theta") == 0)     { *dest = ctx->state.soil_discrete_storage_theta;  return BMI_SUCCESS; }
-    if (strcmp(name, "state_nash_surface_storage") == 0)    { *dest = ctx->state.nash_surface_storage_m;       return BMI_SUCCESS; }
     if (strcmp(name, "state_nash_subsurface_storage") == 0) { *dest = ctx->state.nash_subsurface_storage_m;    return BMI_SUCCESS; }
     if (strcmp(name, "state_giuh_queue") == 0)              { *dest = ctx->state.giuh_queue_m;                 return BMI_SUCCESS; }
 
@@ -677,13 +651,6 @@ static int Set_value(Bmi *self, const char *name, void *src) {
         double *s = (double*)src;
         for (int i = 0; i < NDISC; i++)
             ctx->state.soil_discrete_storage_theta[i] = s[i];
-    }
-    else if (strcmp(name, "state_nash_surface_storage") == 0) {
-        if (ctx->options.surface_routing_scheme != SURF_ROUTE_NASH_CASCADE)
-            return BMI_FAILURE;
-        double *s = (double*)src;
-        for (int i = 0; i < ctx->parameters.nash_surface_N; i++)
-            ctx->state.nash_surface_storage_m[i] = s[i];
     }
     else if (strcmp(name, "state_nash_subsurface_storage") == 0) {
         double *s = (double*)src;
@@ -748,15 +715,9 @@ static int Get_grid_size(Bmi *self, int grid, int *size) {
     switch (grid) {
         case 0: *size = 1; break;
         case 1: *size = NDISC; break;
-        case 2:
-            if (ctx && ctx->options.surface_routing_scheme == SURF_ROUTE_NASH_CASCADE)
-                *size = ctx->parameters.nash_surface_N;
-            else
-                *size = 0;
-            break;
-        case 3: *size = 2; break;
-        case 4:
-            if (ctx && ctx->options.surface_routing_scheme == SURF_ROUTE_GIUH)
+        case 2: *size = 2; break;  /* subsurface Nash (always 2) */
+        case 3:
+            if (ctx)
                 *size = ctx->parameters.giuh_num_ordinates;
             else
                 *size = 0;

@@ -236,9 +236,6 @@ typedef struct {
     double giuh_ordinates[MAX_NUM_GIUH_ORDINATES];
     double giuh_init_queue_m[MAX_NUM_GIUH_ORDINATES];
 
-    int nash_surface_N;
-    double nash_surface_K_per_h;
-    double nash_surface_init_storage_m[MAX_NUM_SURFACE_NASH_CASCADE];
 
     /* Subsurface Nash */
     int nash_subsurface_N;
@@ -246,8 +243,7 @@ typedef struct {
     double nash_subsurface_init_storage_m[2];
 
     /* Optional extras for surface Nash */
-    double surface_Kinf_per_h;
-    double surface_retention_depth_m;
+
 } cfe_parameters_struct;
 
 /* State: storages and internal queues that evolve over time */
@@ -326,7 +322,6 @@ typedef struct {
                                   // particularly in the discretized soil situation, where the upper disc fills
     double vol_runoff          ;
     double vol_infilt          ;
-    double vol_runon_infilt    ;
     double vol_out_surface     ;
     double vol_end_surface     ;
     double vol_to_gw           ;
@@ -351,7 +346,7 @@ typedef struct {
     double volend_surface      ;
     double volend_subsurface   ;
     double volend              ;
-    double vol_et_from_retention_depth;
+
 
     /* ngen BMI mass balance protocol fields */
     double cumulative_vol;      /* volstart + volin (ngen::mass_in) */

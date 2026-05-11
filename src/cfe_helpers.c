@@ -92,9 +92,6 @@ void set_parameters_defaults_2_1(cfe_parameters_struct* p)
     p->soil_depth_m = 2.0;
     p->nash_subsurface_N = 2;
 
-    for (int i = 0; i < MAX_NUM_SURFACE_NASH_CASCADE; i++)
-        p->nash_surface_init_storage_m[i] = 0.0;
-
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++)
         p->nash_subsurface_init_storage_m[i] = 0.0;
 
@@ -154,6 +151,14 @@ int normalize_config_units(CFE_CONFIG* config, int is_legacy) {
         config->cat_elev = 0.0;
         config->cat_area_km2 = 0.0;
         
+        if (config->surface_routing_num_giuh_ordinates < 1) {
+            config->surface_routing_num_giuh_ordinates = 1;
+            config->surface_routing_giuh_ordinates[0] = 1.0;
+            config->surface_routing_init_giuh_convolution_queue_m[0] = 0.0;
+            if (config->verbosity > 0)
+                fprintf(stderr, "WARNING: No GIUH ordinates in legacy config — using unit impulse (1 ordinate = 1.0)\n");
+        }
+
         // Clear output configuration not available in legacy
         config->output_status_warnings_filename[0] = '\0';
         config->output_internal_fluxes_filename[0] = '\0';
@@ -431,13 +436,9 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
         }
         
         // Surface routing scheme (exactly one) - CHANGED: using string_compare_ignore_case
-        int is_giuh = (string_compare_ignore_case(cfg->surface_routing_scheme_name, "giuh") == 0);
-        int is_nash = (string_compare_ignore_case(cfg->surface_routing_scheme_name, "nash_cascade") == 0);
-        if (!(is_giuh ^ is_nash)) {
-            fprintf(stderr, "ERROR: Must specify exactly one surface routing scheme: 'giuh' or 'nash_cascade'\n");
-            return -1;
-        }
-        
+//
+
+
         // Xinanjiang parameters (if selected) - CHANGED: using string_compare_ignore_case
         if (string_compare_ignore_case(cfg->partitioning_scheme_name, "xinanjiang") == 0) {
             if (is_oob(cfg->soil_Xinanjiang_tension_water_inflection_point, 0.0, 1.0)) {
@@ -459,33 +460,17 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
     }
     
     // Surface routing validation (all versions)
-    if (string_compare_ignore_case(cfg->surface_routing_scheme_name, "NASH_CASCADE") == 0) {
-        if(cfg->verbosity > 1) printf("DEBUG: In validation, surface_routing_num_nash_reservoirs = %d\n", 
-                                       cfg->surface_routing_num_nash_reservoirs);
-        if (cfg->surface_routing_num_nash_reservoirs < 1) {
-            fprintf(stderr, "ERROR: surface_routing_num_nash_reservoirs must be >= 1\n");
-            return -1;
-        }
-        if (cfg->surface_routing_num_nash_reservoirs > MAX_NUM_SURFACE_NASH_CASCADE) {
-            fprintf(stderr, "ERROR: surface_routing_num_nash_reservoirs cannot exceed %d\n", MAX_NUM_SURFACE_NASH_CASCADE);
-            return -1;
-        }
-        if (cfg->surface_routing_nash_K <= 0.0) {
-            fprintf(stderr, "ERROR: surface_routing_nash_K must be > 0\n");
-            return -1;
-        }
-    }
+
     
-    // GIUH validation - NEW: Added bounds checking for ordinates count
-    if (string_compare_ignore_case(cfg->surface_routing_scheme_name, "GIUH") == 0) {
-        if (cfg->surface_routing_num_giuh_ordinates < 1) {
-            fprintf(stderr, "ERROR: surface_routing_num_giuh_ordinates must be >= 1\n");
-            return -1;
-        }
-        if (cfg->surface_routing_num_giuh_ordinates > MAX_NUM_GIUH_ORDINATES) {
-            fprintf(stderr, "ERROR: surface_routing_num_giuh_ordinates cannot exceed %d\n", MAX_NUM_GIUH_ORDINATES);
-            return -1;
-        }
+    // GIUH validation - NEW: Added bounds checking ffor ordinates count
+    
+    if (cfg->surface_routing_num_giuh_ordinates < 1) {
+        fprintf(stderr, "ERROR: surface_routing_num_giuh_ordinates must be >= 1\n");
+        return -1;
+    }
+    if (cfg->surface_routing_num_giuh_ordinates > MAX_NUM_GIUH_ORDINATES) {
+        fprintf(stderr, "ERROR: surface_routing_num_giuh_ordinates cannot exceed %d\n", MAX_NUM_GIUH_ORDINATES);
+        return -1;
     }
     
     //============================
@@ -547,15 +532,9 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     surf[sizeof(surf) - 1] = '\0';
     trim_inplace(surf);
 
-    if (equals_ic(surf, "NASH_CASCADE") || equals_ic(surf, "NASHCASCADE") || equals_ic(surf, "NASH")) {
-        o->surface_routing_scheme = SURF_ROUTE_NASH_CASCADE;
-    } else if (equals_ic(surf, "GIUH")) {
-        o->surface_routing_scheme = SURF_ROUTE_GIUH;
-    } else {
-        fprintf(stderr, "ERROR: Unrecognized surface routing scheme '%s' (expected 'GIUH' or 'NASH_CASCADE')\n", surf);
-        return -1;
-    }
+//
 
+    o->surface_routing_scheme = SURF_ROUTE_GIUH;  // default
 
     //  DEBUG:
     if(o->verbosity > 0) fprintf(stderr,"In map_config_to_parameters_and_options(): o->surface_routing_scheme=%d\n", 
@@ -655,20 +634,6 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
                 p->giuh_init_queue_m[i] = cfg->surface_routing_init_giuh_convolution_queue_m[i];
             }
         }
-    } else {  // o->surface_routing_scheme == SURF_ROUTE_NASH_CASCADE
-        p->nash_surface_N       = cfg->surface_routing_num_nash_reservoirs;
-        if(p->nash_surface_N > MAX_NUM_SURFACE_NASH_CASCADE) {
-            fprintf(stderr,"ERROR: number of surface Nash cascade resevoirs in config file cannot exceed %d.\n",
-                    MAX_NUM_SURFACE_NASH_CASCADE);
-            return -1;
-        }
-        p->nash_surface_K_per_h = cfg->surface_routing_nash_K;
-        
-        for (int i = 0; i < p->nash_surface_N; i++) {
-            p->nash_surface_init_storage_m[i] = cfg->surface_routing_nash_cascade_init_storage_m[i];
-        }
-        p->surface_Kinf_per_h        = cfg->surface_nash_cascade_infil_rate_const_Kinf;
-        p->surface_retention_depth_m = cm_to_m(cfg->surface_nash_cascade_retention_depth_cm);
     }
 
     // subsurface nash
@@ -844,10 +809,6 @@ int cfe_initialize(const cfe_parameters_struct* p,
     s->gw_storage_m   = p->gw_init_storage_m;
 
     // Clamp counts to fixed-size arrays
-    int Nsurf = p->nash_surface_N;
-    if (Nsurf < 0) Nsurf = 0;
-    if (Nsurf > MAX_NUM_SURFACE_NASH_CASCADE) Nsurf = MAX_NUM_SURFACE_NASH_CASCADE;
-
     int Nsub = p->nash_subsurface_N;
     if (Nsub < 0) Nsub = 0;
     if (Nsub > MAX_NUM_SUBSURFACE_NASH_CASCADE) Nsub = MAX_NUM_SUBSURFACE_NASH_CASCADE;
@@ -856,18 +817,7 @@ int cfe_initialize(const cfe_parameters_struct* p,
     if (giuh_num_ords < 0) giuh_num_ords = 0;
     if (giuh_num_ords > MAX_NUM_GIUH_ORDINATES) giuh_num_ords = MAX_NUM_GIUH_ORDINATES;
 
-    // ---- Surface Nash storage (fixed arrays; no malloc) ----
-    // Zero then seed up to Nsurf from params init storage
-    for (int i = 0; i < MAX_NUM_SURFACE_NASH_CASCADE; i++) {
-        s->nash_surface_storage_m[i] = (i < Nsurf) ? p->nash_surface_init_storage_m[i] : 0.0;
-    }
 
-    if (o->verbosity > 0) {
-        printf("DEBUG: Initialized %d Nash surface reservoirs:\n", Nsurf);
-        for (int i = 0; i < Nsurf; i++) {
-            printf("  storage[%d] = %.6f\n", i, s->nash_surface_storage_m[i]);
-        }
-    }
     // ---- Subsurface Nash storage (fixed arrays; no malloc) ----
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
         s->nash_subsurface_storage_m[i] = (i < Nsub) ? p->nash_subsurface_init_storage_m[i] : 0.0;
@@ -1149,27 +1099,15 @@ int cfe_step(const cfe_parameters_struct* p,
     rp.urban_decimal_fraction                       = 0.0;
     rp.ice_content_threshold                        = p->soil_ice_imperv_threshold;
 
-    // 5) Surface and subsurface Nash parameters (use per hour in kernel)
-    struct NASH_CASCADE_PARAMETERS_STRUCTURE nash_surface = {0};
-    struct NASH_CASCADE_PARAMETERS_STRUCTURE nash_sub     = {0};
-
-    // Surface Nash or GIUH routing; we still fill both
-    nash_surface.N_nash                = (p->nash_surface_N > 0) ? p->nash_surface_N : 0;
-    nash_surface.K_nash                = p->nash_surface_K_per_h;  
-    nash_surface.nsubsteps             = 1;
-    nash_surface.nash_storage          = s->nash_surface_storage_m;       // state-owned storage array
-    nash_surface.retention_depth       = p->surface_retention_depth_m;
-    nash_surface.K_infiltration        = p->surface_Kinf_per_h;
-    nash_surface.runon_infiltration    = 0.0;
-    nash_surface.is_riparian_gw        = 0;
+    // 5) Subsurface Nash parameters (use per hour in kernel)
+   struct NASH_CASCADE_PARAMETERS_STRUCTURE nash_sub     = {0};
+    
 
     nash_sub.N_nash                    = (p->nash_subsurface_N > 0) ? p->nash_subsurface_N : 0;
     nash_sub.K_nash                    = p->nash_subsurface_K_per_h;      // if this is per hour already, leave as-is
     nash_sub.nsubsteps                 = 1;
     nash_sub.nash_storage              = s->nash_subsurface_storage_m;
-    nash_sub.retention_depth           = 0.0;
-    nash_sub.K_infiltration            = 0.0;
-    nash_sub.runon_infiltration        = 0.0;
+
     nash_sub.is_riparian_gw = 0;
 
     // 6) ET structure from forcing
@@ -1217,7 +1155,6 @@ int cfe_step(const cfe_parameters_struct* p,
         giuh_ords,
         giuh_queue,
         &flux_nash_subsurface_lateral_runoff_m,
-        &nash_surface,
         &nash_sub,
         &et,
         &Qout_m,
@@ -1334,10 +1271,8 @@ void print_cfe_input_debug(const cfe_options_struct*    o,
 
     if (!p) { printf("====================================\n\n"); return; }
 
-    // Rainfall partitioning / surface Nash 
-    printf("-- Surface Partitioning/Retention --\n");
-    printf("Retention depth:                %.6f [m]\n", p->surface_retention_depth_m);
-    printf("Infiltration K_inf:             %.6e [h^-1]\n", p->surface_Kinf_per_h);
+    // Rainfall partitioning
+    printf("-- Surface Partitioning --\n");
     // If you added the limiter parameter (soil->GW)
     #ifdef HAVE_TO_GW_PERC_LIMITER
     printf("Soil->GW perc limiter (0..1):   %.3f [-]\n", p->to_gw_perc_limiter_0_1);
@@ -1362,30 +1297,6 @@ void print_cfe_input_debug(const cfe_options_struct*    o,
         printf("\n");
     }
 
-    // Surface Nash
-    if (o && o->surface_routing_scheme == SURF_ROUTE_NASH_CASCADE) {
-        int Nsurf = p->nash_surface_N;
-        if (Nsurf < 0) Nsurf = 0;
-        if (Nsurf > MAX_NUM_SURFACE_NASH_CASCADE) Nsurf = MAX_NUM_SURFACE_NASH_CASCADE;
-
-        printf("-- Surface Nash Cascade --\n");
-        printf("N (reservoirs):                 %d\n", Nsurf);
-        printf("K (per hour):                   %.6f [h^-1]\n", p->nash_surface_K_per_h);
-        printf("Retention depth:                %.6f [m]\n", p->surface_retention_depth_m);
-        printf("Infiltration time const. K_inf: %.6e [h^-1]\n", p->surface_Kinf_per_h);
-
-        if (Nsurf > 0) {
-            printf("Init storages (m):             ");
-            for (int i = 0; i < Nsurf; i++) printf(" %.6f", p->nash_surface_init_storage_m[i]);
-            printf("\n");
-        }
-        if (s && Nsurf > 0) {
-            printf("Current storages (m):          ");
-            for (int i = 0; i < Nsurf; i++) printf(" %.6f", s->nash_surface_storage_m[i]);
-            printf("\n");
-        }
-        printf("\n");
-    }
 
     // Subsurface Nash (always show, since you hard-coded N=2)
     {

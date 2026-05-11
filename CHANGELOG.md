@@ -28,7 +28,7 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 - Per-timestep volume balance outputs: `timestep_storage_start_m`,
   `timestep_input_m`, `timestep_output_m`, `timestep_storage_end_m`.
 - `vol_balance_residual_m` output: cached volstart + volin - volout - volend.
-- 20 calibration parameters via `get_value`, `set_value`, and `get_value_ptr`,
+- 18 calibration parameters via `get_value`, `set_value`, and `get_value_ptr`,
   with v2 legacy name aliases for backward compatibility with ngen calibration
   configs (e.g. `maxsmc` resolves to the same field as `soil_effective_porosity`).
 - ngen mass balance protocol: `ngen::mass_in`, `ngen::mass_out`,
@@ -40,9 +40,16 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 #### Core Model Improvements
 - Conceptual reservoir rewritten with epsilon-based comparisons, linear
   reservoir special case (exponent ≈ 1.0), and improved flux priority logic.
-- Unified `nash_cascade_routing()` replaces separate surface/subsurface
-  functions, with retention depth and runon infiltration support.
+- `nash_cascade_routing()` replaces separate surface/subsurface functions.
 - CSDMS ABI compatibility notice added to `include/bmi.h`.
+
+#### Model Simplification (GIUH-only surface routing)
+- Nash Cascade surface routing removed — GIUH is the only surface routing
+  option. Retention depth, runon infiltration, and `et_from_retention_depth()`
+  removed. These features did not produce added model skill (FLO, 5/26).
+- Legacy v2 configs with `surface_runoff_scheme=NASH_CASCADE` are accepted
+  with a deprecation warning; GIUH is used with a default unit impulse if
+  no GIUH ordinates are specified.
 
 ### Changed
 
@@ -86,8 +93,6 @@ Calibration parameters (v2 alias → v3 canonical name):
 | `a_Xinanjiang_inflection_point_parameter` | `Xinanjiang_inflection_a` | - |
 | `b_Xinanjiang_shape_parameter` | `Xinanjiang_shape_b` | - |
 | `x_Xinanjiang_shape_parameter` | `Xinanjiang_shape_x` | - |
-| `Kinf_nash_surface` | `surface_nash_Kinf` | h-1 |
-| `retention_depth_nash_surface` | `surface_nash_retention_depth_m` | m |
 | — | `Priestley_Taylor_alpha` | - |
 | — | `soil_ice_imperv_threshold` | - |
 
@@ -113,6 +118,12 @@ Calibration parameters (v2 alias → v3 canonical name):
   `NWM_PONDED_DEPTH`.
 - v2 input variables: `ice_fraction_schaake`, `ice_fraction_xinanjiang`,
   `soil_moisture_profile`.
+- Nash Cascade surface routing: `surface_runoff_scheme` option,
+  `N_nash_surface`, `K_nash_surface`, `nash_storage_surface`,
+  `Kinf_nash_surface`, `retention_depth_nash_surface` config keys,
+  `state_nash_surface_storage` BMI output variable,
+  `surface_nash_Kinf` and `surface_nash_retention_depth_m` calibration params,
+  `et_from_retention_depth()` function.
 
 ### Fixed
 

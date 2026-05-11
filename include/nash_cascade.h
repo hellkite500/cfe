@@ -24,11 +24,9 @@ struct NASH_CASCADE_PARAMETERS_STRUCTURE {
   double K_nash;                // Fraction of storage per hour that moves from one reservoir to the next (time constant); [1/hour]
   int    nsubsteps;             // the number of substeps that each dt is divided into
   double *nash_storage;         // storage array nash cascade reservoirs [m]
-  double retention_depth;       // parameter that represents retention depth process that is equivalent [m]
-				// to that used in WRF-Hydro 
-  double runon_infiltration;    // infiltration losses from surface runoff water to soil (or riparian groundwater) [m/hr]
-  int    is_riparian_gw;        // flag to turn on/off riparian groundwater (currently used in LASAM only)
-  double K_infiltration;        // Fraction of storage per hour that moves from reservoirs to soil (time constant); [1/hour]
+
+  int    is_riparian_gw;        // flag to turn on/off riparian groundwater (currently used in CASAM only)
+//  double K_infiltration;        // Fraction of storage per hour that moves from reservoirs to soil (time constant); [1/hour]
 };
 
 double nash_cascade_routing(double runoff_m, double soil_storage_deficit_m,

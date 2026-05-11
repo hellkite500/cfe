@@ -13,14 +13,14 @@ For the conceptual basis and hypotheses underpinning CFE, see
 - **Discrete Soil Moisture Balance Model (DSBM)**: optional 4-layer
   Noah-MP-style soil discretization with Darcy-Buckingham vertical fluxes
   and Clapp-Hornberger hydraulic properties.
-- **Unified Nash Cascade routing** for both surface and subsurface flow,
-  with optional retention depth and runon infiltration.
+- **GIUH surface routing** (Nash Cascade surface routing removed — did not
+  add model skill). Subsurface lateral flow via 2-reservoir Nash cascade.
 - **Priestley-Taylor PET** estimation from AORC radiation data (testing only).
 - **New v3 config format** (`.cf3`) with comments and explicit units, plus
   full backward compatibility with v2 legacy format (`.cf2`/`.txt`).
 - **BMI compliance** with the CSDMS BMI-C standard, including `get_value_ptr`
   for all variables and the ngen mass balance protocol.
-- **20 calibration parameters** accessible via BMI `set_value`/`get_value_ptr`,
+- **18 calibration parameters** accessible via BMI `set_value`/`get_value_ptr`,
   with v2 parameter name aliases for backward compatibility.
 
 ## Build and Run
