@@ -1,4 +1,5 @@
 #include <math.h>
+#include <string.h>
 #include "general_test_utils.h"
 #include "bmi_test_utils.h"
 #include "bmi_cfe.h"
@@ -85,6 +86,90 @@ int test_mass_balance_protocol(TestFixture* fixture)
 
     printf("\n  mass_in=%.6e  out=%.6e  stored=%.6e  leaked=%.6e  residual=%.2e",
            *mass_in, *mass_out, *mass_stored, *mass_leaked, residual);
+
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
+ * test_grid_consistency
+ *
+ * For each variable, verify that the grid metadata functions are mutually
+ * consistent: get_var_grid → get_grid_rank/size/type, and that
+ * nbytes == grid_size * itemsize for array variables.
+ */
+int test_grid_consistency(TestFixture* fixture)
+{
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize for test_grid_consistency");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {
+        const char* name = fixture->expected_output_and_input_var_names[i];
+
+        /* get_var_grid */
+        int grid_id = -1;
+        bmi_status = m->get_var_grid(m, name, &grid_id);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_var_grid FAILED for '%s'", name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* Verify grid_id matches fixture expectation */
+        if (grid_id != fixture->expected_grid_ids[i]) {
+            printf("\ngrid_id for '%s': got %d, expected %d", name, grid_id, fixture->expected_grid_ids[i]);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* get_grid_rank */
+        int rank = -1;
+        bmi_status = m->get_grid_rank(m, grid_id, &rank);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_grid_rank FAILED for '%s' (grid %d)", name, grid_id);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        int expected_rank = (grid_id == 0) ? 0 : 1;
+        if (rank != expected_rank) {
+            printf("\ngrid_rank for '%s' (grid %d): got %d, expected %d", name, grid_id, rank, expected_rank);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* get_grid_type */
+        char grid_type[64] = {0};
+        bmi_status = m->get_grid_type(m, grid_id, grid_type);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_grid_type FAILED for '%s' (grid %d)", name, grid_id);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        const char* expected_type = (grid_id == 0) ? "scalar" : "vector";
+        if (strcmp(grid_type, expected_type) != 0) {
+            printf("\ngrid_type for '%s' (grid %d): got '%s', expected '%s'", name, grid_id, grid_type, expected_type);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* get_grid_size */
+        int grid_size = -1;
+        bmi_status = m->get_grid_size(m, grid_id, &grid_size);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_grid_size FAILED for '%s' (grid %d)", name, grid_id);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* For array variables: verify nbytes == grid_size * itemsize */
+        if (grid_id > 0) {
+            int itemsize = -1, nbytes = -1;
+            m->get_var_itemsize(m, name, &itemsize);
+            m->get_var_nbytes(m, name, &nbytes);
+
+            if (nbytes != grid_size * itemsize) {
+                printf("\nGrid consistency FAILED for '%s' (grid %d): nbytes=%d != grid_size(%d) * itemsize(%d) = %d",
+                       name, grid_id, nbytes, grid_size, itemsize, grid_size * itemsize);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
 
     return TEST_RETURN_CODE_PASS;
 }
@@ -741,140 +826,154 @@ int test_get_time_units(TestFixture* fixture)
     return TEST_RETURN_CODE_PASS;
 }
 
+/*
+ * Known buffer sizes for array variables in the test config.
+ * These are test expectations — NOT queried from the model.
+ */
+#define TEST_NDISC 4                /* state_soil_moisture_theta */
+#define TEST_N_NASH_SUBSURFACE 2    /* state_nash_subsurface_storage */
+#define TEST_N_GIUH_ORDINATES 5     /* state_giuh_queue (from test config) */
+
+/* Return the expected buffer size in bytes for a variable, based on test
+ * expectations (grid_id from fixture, known array sizes from test config).
+ * Returns 0 if the variable is unrecognized. */
+/* String buffer size must match PATH_FILENAME_STRING_LENGTH in cfe_config.h */
+#define TEST_STRING_BUF_SIZE 1024
+
+static int expected_nbytes_for_var(const char* name, int grid_id)
+{
+    /* string type */
+    if (strcmp(name, "forcing_file_path") == 0)
+        return TEST_STRING_BUF_SIZE;
+
+    switch (grid_id) {
+        case 0:
+            /* scalar: int or double */
+            if (strcmp(name, "state_current_timestep") == 0 ||
+                strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
+                strcmp(name, "verbosity") == 0)
+                return (int)sizeof(int);
+            return (int)sizeof(double);
+        case 1: return TEST_NDISC * (int)sizeof(double);
+        case 2: return TEST_N_NASH_SUBSURFACE * (int)sizeof(double);
+        case 3: return TEST_N_GIUH_ORDINATES * (int)sizeof(double);
+        default: return 0;
+    }
+}
+
 int test_get_value(TestFixture* fixture)
 {
-    // For this, we need to be able to initialize first
-    int bmi_status = fixture->bmi_model->initialize(fixture->bmi_model, fixture->cfg_file);
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
     if (bmi_status != BMI_SUCCESS) {
-        printf("\nReturned BMI_FAILURE status code attempting to initialize (in order to test get_value)");
+        printf("\nFailed to initialize for test_get_value");
         return TEST_RETURN_CODE_FAIL;
     }
 
-    char var_type[BMI_MAX_TYPE_NAME];
-    double uninit_value, var_value;
+    /* Set inputs so they have known values before we read them back */
+    if (!set_arbitrary_input_variables_before_update(fixture, 0))
+        return TEST_RETURN_CODE_FAIL;
 
-    double arbitrary_values[EXPECTED_INPUT_VAR_COUNT];
-    get_arbitrary_input_var_values(fixture->current_test_example, 0, arbitrary_values);
-
-    for (int i = 0; i < EXPECTED_INPUT_VAR_COUNT; i++) {
-        // Have local var for these just for readability
-        const char* var_name = fixture->expected_input_var_names[i];
-        double* current_arb_val = arbitrary_values + i;
-
-        // Sanity check the test's validity
-        bmi_status = fixture->bmi_model->get_var_type(fixture->bmi_model, var_name, var_type);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status code checking type for '%s' (while testing get_value)", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        // v3: skip non-double inputs (e.g. verbosity=int, forcing_file_path=string)
-        if (strcmp(var_type, "double") != 0) continue;
-
-        // Confirm that uninitialized values are not the same thing we will be setting and then getting for the tests
-        bmi_status = fixture->bmi_model->get_value(fixture->bmi_model, var_name, &uninit_value);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status getting uninitialized value for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        // The odds of this are very low, but we are better off knowing if this happens (though wait until then to
-        // do anything about it)
-        if (*current_arb_val == uninit_value) {
-            printf("\nUninitialized value for '%s' matches test value for get_value and invalidates test", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-
-        // Then set the arbitrary value and test getting it
-        bmi_status = fixture->bmi_model->set_value(fixture->bmi_model, var_name, current_arb_val);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status setting arbitrary value (for get_value) for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        bmi_status = fixture->bmi_model->get_value(fixture->bmi_model, var_name, &var_value);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status getting arbitrary value for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        if (!confirm_matches_expected_doubles(*current_arb_val, var_value)) {
-            printf("\nArbitrary value retrieved with get_value was not as expected for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-    }
-
-    // Now do some checking of the output variables
-
-    // All doubles except one int, which we will cast for storage purpose
-    double output_double_vars[EXPECTED_OUTPUT_VAR_COUNT];
-    if (!get_output_var_values(fixture, output_double_vars)) {
-        printf("\nFailed to get output var values for testing get_value");
+    /* Run one step so outputs are populated */
+    bmi_status = m->update(m);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to update for test_get_value");
         return TEST_RETURN_CODE_FAIL;
     }
+
+    /* Test get_value for EVERY advertised variable — no skips */
+    for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {
+        const char* name = fixture->expected_output_and_input_var_names[i];
+        int grid_id = fixture->expected_grid_ids[i];
+        int nbytes = expected_nbytes_for_var(name, grid_id);
+
+        if (nbytes <= 0) {
+            printf("\nUnknown expected size for '%s' (grid %d)", name, grid_id);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* Allocate a buffer large enough for any variable (including strings) */
+        char buf[TEST_STRING_BUF_SIZE + 8]; /* +8 for sentinel margin */
+        memset(buf, 0xCD, sizeof(buf));
+
+        bmi_status = m->get_value(m, name, buf);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_value FAILED for '%s' (grid=%d, expected %d bytes)", name, grid_id, nbytes);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* Verify the sentinel wasn't written beyond expected bounds.
+         * Check that the byte right after nbytes still has our sentinel. */
+        if (nbytes < (int)sizeof(buf) && (unsigned char)buf[nbytes] != 0xCD) {
+            printf("\nget_value for '%s' wrote beyond expected %d bytes", name, nbytes);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        /* Also cross-check: get_var_nbytes should agree with our expectation */
+        int model_nbytes = 0;
+        m->get_var_nbytes(m, name, &model_nbytes);
+        if (model_nbytes != nbytes) {
+            printf("\nget_var_nbytes for '%s' returned %d, expected %d", name, model_nbytes, nbytes);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
     return TEST_RETURN_CODE_PASS;
 }
 
 int test_get_value_at_indices(TestFixture* fixture)
 {
-    // This should basically work the same as the test for get_value, just setting only at indices 0
-
-    // For this, we need to be able to initialize first
-    int bmi_status = fixture->bmi_model->initialize(fixture->bmi_model, fixture->cfg_file);
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
     if (bmi_status != BMI_SUCCESS) {
-        printf("\nReturned BMI_FAILURE status code attempting to initialize (in order to test get_value_at_indices)");
+        printf("\nFailed to initialize for test_get_value_at_indices");
         return TEST_RETURN_CODE_FAIL;
     }
 
-    char var_type[BMI_MAX_TYPE_NAME];
-    double uninit_value, var_value;
-    int indices[1] = {0};
+    /* Run one step so array state has non-trivial values */
+    double rain = 0.005, pet = 0.0;
+    m->set_value(m, "rainfall_depth_m", &rain);
+    m->set_value(m, "et_potential_m", &pet);
+    m->update(m);
 
-    double arbitrary_values[EXPECTED_INPUT_VAR_COUNT];
-    get_arbitrary_input_var_values(fixture->current_test_example, 0, arbitrary_values);
+    /* --- Test indexed access to state_soil_moisture_theta --- */
+    {
+        /* First get the full array via get_value */
+        double full_theta[TEST_NDISC] = {0};
+        m->get_value(m, "state_soil_moisture_theta", full_theta);
 
-    for (int i = 0; i < EXPECTED_INPUT_VAR_COUNT; i++) {
-        // Have local var for these just for readability
-        const char* var_name = fixture->expected_input_var_names[i];
-        double* current_arb_val = arbitrary_values + i;
+        /* Then get each element via get_value_at_indices and compare */
+        for (int idx = 0; idx < TEST_NDISC; idx++) {
+            double val = -1.0;
+            int indices[1] = {idx};
+            bmi_status = m->get_value_at_indices(m, "state_soil_moisture_theta", &val, indices, 1);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nget_value_at_indices FAILED for state_soil_moisture_theta[%d]", idx);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            if (!confirm_matches_expected_doubles(full_theta[idx], val)) {
+                printf("\nstate_soil_moisture_theta[%d]: at_indices=%.8e != get_value=%.8e", idx, val, full_theta[idx]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
 
-        // Sanity check the test's validity
-        bmi_status = fixture->bmi_model->get_var_type(fixture->bmi_model, var_name, var_type);
+    /* --- Test indexed access to scalar variables (index 0) --- */
+    {
+        double val_full = -1.0, val_idx = -1.0;
+        int indices[1] = {0};
+        m->get_value(m, "discharge_m", &val_full);
+        bmi_status = m->get_value_at_indices(m, "discharge_m", &val_idx, indices, 1);
         if (bmi_status != BMI_SUCCESS) {
-            printf("\nBMI_FAILURE status checking type for '%s' (while testing set_value_at_indices)", var_name);
+            printf("\nget_value_at_indices FAILED for scalar 'discharge_m'");
             return TEST_RETURN_CODE_FAIL;
         }
-        // v3: skip non-double inputs (e.g. verbosity=int, forcing_file_path=string)
-        if (strcmp(var_type, "double") != 0) continue;
-
-        // Confirm that uninitialized values are not the same thing we will be setting and then getting for the tests
-        bmi_status = fixture->bmi_model->get_value_at_indices(fixture->bmi_model, var_name, &uninit_value, indices, 1);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status getting uninitialized value at index 0 for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        // The odds of this are very low, but we are better off knowing if this happens (though wait until then to
-        // do anything about it)
-        if (*current_arb_val == uninit_value) {
-            printf("\nUninitialized value for '%s' matches test value for get_value_at_indices and invalidates test",
-                   var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-
-        // Then set the arbitrary value for an index and test getting it
-        bmi_status = fixture->bmi_model->set_value_at_indices(fixture->bmi_model, var_name, indices, 1, current_arb_val);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE setting arbitrary value (for get_value_at_indices) at index 0 for '%s'",
-                   var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        bmi_status = fixture->bmi_model->get_value_at_indices(fixture->bmi_model, var_name, &var_value, indices, 1);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status getting arbitrary value at index 0 for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        if (!confirm_matches_expected_doubles(*current_arb_val, var_value)) {
-            printf("\nArbitrary value retrieved with get_value_at_indices for index 0 was not as expected for '%s'",
-                   var_name);
+        if (!confirm_matches_expected_doubles(val_full, val_idx)) {
+            printf("\ndischarge_m: at_indices[0]=%.8e != get_value=%.8e", val_idx, val_full);
             return TEST_RETURN_CODE_FAIL;
         }
     }
+
     return TEST_RETURN_CODE_PASS;
 }
 
@@ -1010,6 +1109,45 @@ int test_get_value_ptr(TestFixture* fixture)
         }
     }
 
+    /* --- Calibration parameters: verify ptr consistency with get/set --- */
+    {
+        static const char* cal_params[] = {
+            "soil_effective_porosity", "soil_saturated_hydraulic_conductivity",
+            "soil_percolation_rate_limiter", "soil_Clapp_Hornberger_b",
+            "soil_lateral_flow_K", "subsurface_nash_K",
+            "gw_discharge_coefficient", "gw_discharge_exponent",
+            "gw_max_storage_m", "soil_saturated_capillary_head",
+            "soil_wilting_point", "soil_field_capacity_fraction",
+            "refkdt", "Xinanjiang_inflection_a",
+            "Xinanjiang_shape_b", "Xinanjiang_shape_x",
+            "Priestley_Taylor_alpha", "soil_ice_imperv_threshold"
+        };
+        int n_cal = sizeof(cal_params) / sizeof(cal_params[0]);
+        for (int i = 0; i < n_cal; i++) {
+            double* ptr = NULL;
+            bmi_status = fixture->bmi_model->get_value_ptr(fixture->bmi_model, cal_params[i], (void**)&ptr);
+            if (bmi_status != BMI_SUCCESS || ptr == NULL) {
+                printf("\nget_value_ptr FAILED for calibration param '%s'", cal_params[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            /* Write via ptr, confirm via get_value */
+            *ptr = 9.87 + i;
+            double readback = -1.0;
+            fixture->bmi_model->get_value(fixture->bmi_model, cal_params[i], &readback);
+            if (!confirm_matches_expected_doubles(9.87 + i, readback)) {
+                printf("\nptr write-through failed for calibration param '%s'", cal_params[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            /* Set via set_value, confirm via ptr */
+            double new_val = 3.14 + i;
+            fixture->bmi_model->set_value(fixture->bmi_model, cal_params[i], &new_val);
+            if (!confirm_matches_expected_doubles(new_val, *ptr)) {
+                printf("\nset_value not reflected in ptr for calibration param '%s'", cal_params[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
+
     return TEST_RETURN_CODE_PASS;
 }
 
@@ -1089,11 +1227,46 @@ int test_get_var_units(TestFixture* fixture)
     int status;
     char actual_value[BMI_MAX_VAR_NAME];
 
-    // v3: variable set has changed; just verify get_var_units succeeds for each variable
+    /* v3 expected units — codified so accidental changes are caught.
+     * Order must match the variable names in bmi_test_utils.c setup(). */
+    char* expected_units[EXPECTED_TOTAL_VAR_COUNT] = {
+        /* 20 outputs */
+        "m",    /* discharge_m */
+        "m",    /* surface_runoff_m */
+        "m",    /* lateral_flow_m */
+        "m",    /* baseflow_m */
+        "m",    /* actual_et_m */
+        "m",    /* vol_balance_residual_m */
+        "m",    /* state_soil_storage_m */
+        "m",    /* state_gw_storage_m */
+        "1",    /* state_current_timestep */
+        "-",    /* state_soil_moisture_theta */
+        "m",    /* state_nash_subsurface_storage */
+        "m",    /* state_giuh_queue */
+        "1",    /* config_simulate_discrete_soil_moisture */
+        "km2",  /* param_catchment_area_km2 */
+        "m",    /* param_soil_depth_m */
+        "-",    /* param_soil_porosity */
+        "m",    /* timestep_storage_start_m */
+        "m",    /* timestep_input_m */
+        "m",    /* timestep_output_m */
+        "m",    /* timestep_storage_end_m */
+        /* 4 inputs */
+        "m",    /* rainfall_depth_m */
+        "m",    /* et_potential_m */
+        "1",    /* verbosity */
+        "1"     /* forcing_file_path */
+    };
+
     for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {
         status = fixture->bmi_model->get_var_units(fixture->bmi_model, fixture->expected_output_and_input_var_names[i], actual_value);
         if (status != BMI_SUCCESS) {
             printf("\nReturned BMI_FAILURE status code getting units for '%s'", fixture->expected_output_and_input_var_names[i]);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        if (!confirm_matches_expected_strs(expected_units[i], actual_value)) {
+            printf("\nUnits for '%s' did not match expected (got '%s', want '%s')",
+                   fixture->expected_output_and_input_var_names[i], actual_value, expected_units[i]);
             return TEST_RETURN_CODE_FAIL;
         }
     }
@@ -1126,24 +1299,33 @@ int test_get_var_type(TestFixture* fixture)
 
 int test_get_var_nbytes(TestFixture* fixture)
 {
-    int item_nbytes, expected_nbytes, status;
+    /* This test must initialize because array sizes depend on config */
+    int bmi_status = fixture->bmi_model->initialize(fixture->bmi_model, fixture->cfg_file);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize for test_get_var_nbytes");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    int item_nbytes, status;
 
     for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {
         const char* var_name = fixture->expected_output_and_input_var_names[i];
+        int grid_id = fixture->expected_grid_ids[i];
+
         status = fixture->bmi_model->get_var_nbytes(fixture->bmi_model, var_name, &item_nbytes);
         if (status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status code getting nbytes for '%s'", fixture->expected_output_and_input_var_names[i]);
+            printf("\nget_var_nbytes FAILED for '%s'", var_name);
             return TEST_RETURN_CODE_FAIL;
         }
 
-        /*** Figure out what the expected size should be ***/
-        // Only SURF_RUNOFF_SCHEME is of type int; all the rest (output and input) are doubles
-        // v3: trust the model's own nbytes report — just verify call succeeds
-        // and that the value is self-consistent (this avoids hardcoding array sizes)
-        expected_nbytes = item_nbytes;
-
-        if (!confirm_matches_expected_ints(expected_nbytes, item_nbytes)){
-            printf("\nnbytes for '%s' did not match expected", fixture->expected_output_and_input_var_names[i]);
+        /* Compare against independently known expected size */
+        int expected = expected_nbytes_for_var(var_name, grid_id);
+        if (expected <= 0) {
+            printf("\nNo expected nbytes for '%s' (grid %d)", var_name, grid_id);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        if (item_nbytes != expected) {
+            printf("\nnbytes for '%s': got %d, expected %d", var_name, item_nbytes, expected);
             return TEST_RETURN_CODE_FAIL;
         }
     }
@@ -1159,134 +1341,209 @@ int test_initialize(TestFixture* fixture)
 
 int test_set_value(TestFixture* fixture)
 {
-    // For this, we need to be able to initialize first
-    int bmi_status = fixture->bmi_model->initialize(fixture->bmi_model, fixture->cfg_file);
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
     if (bmi_status != BMI_SUCCESS) {
-        printf("\nReturned BMI_FAILURE status code attempting to initialize (in order to test set_value)");
+        printf("\nFailed to initialize for test_set_value");
         return TEST_RETURN_CODE_FAIL;
     }
 
-    char var_type[BMI_MAX_TYPE_NAME];
-    double var_value, zero_value = 0.0;
+    /* --- Double inputs: set → get round-trip --- */
+    {
+        const char* double_inputs[] = {"rainfall_depth_m", "et_potential_m"};
+        for (int i = 0; i < 2; i++) {
+            double set_val = 0.0042 + i;
+            double get_val = -1.0;
+            bmi_status = m->set_value(m, double_inputs[i], &set_val);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nset_value FAILED for double input '%s'", double_inputs[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            bmi_status = m->get_value(m, double_inputs[i], &get_val);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nget_value FAILED after set for '%s'", double_inputs[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            if (!confirm_matches_expected_doubles(set_val, get_val)) {
+                printf("\nset/get round-trip failed for '%s'", double_inputs[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
 
-    double arbitrary_values[EXPECTED_INPUT_VAR_COUNT];
-    get_arbitrary_input_var_values(fixture->current_test_example, 0, arbitrary_values);
-
-    for (int i = 0; i < EXPECTED_INPUT_VAR_COUNT; i++) {
-        // Have local var for this just for readability
-        const char* var_name = fixture->expected_input_var_names[i];
-        // Sanity check the test's validity
-        bmi_status = fixture->bmi_model->get_var_type(fixture->bmi_model, var_name, var_type);
+    /* --- Int input: set → get round-trip --- */
+    {
+        int set_val = 2;
+        int get_val = -1;
+        bmi_status = m->set_value(m, "verbosity", &set_val);
         if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status code checking type for '%s' (while testing set_value)", var_name);
+            printf("\nset_value FAILED for int input 'verbosity'");
             return TEST_RETURN_CODE_FAIL;
         }
-        // v3: skip non-double inputs (e.g. verbosity=int, forcing_file_path=string)
-        if (strcmp(var_type, "double") != 0) continue;
-
-        // First, test setting input var to 0
-        bmi_status = fixture->bmi_model->set_value(fixture->bmi_model, var_name, &zero_value);
+        bmi_status = m->get_value(m, "verbosity", &get_val);
         if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status setting zero value for '%s'", var_name);
+            printf("\nget_value FAILED after set for 'verbosity'");
             return TEST_RETURN_CODE_FAIL;
         }
-        // And confirm
-        bmi_status = fixture->bmi_model->get_value(fixture->bmi_model, var_name, &var_value);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status confirming zero value was set for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        if (!confirm_matches_expected_doubles(zero_value, var_value)) {
-            printf("\nZero value was not set as expected for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-
-        // Now, set to the arbitrary value
-        double* current_arb_val = arbitrary_values + i;
-        bmi_status = fixture->bmi_model->set_value(fixture->bmi_model, var_name, current_arb_val);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status setting arbitrary value for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        // And confirm
-        bmi_status = fixture->bmi_model->get_value(fixture->bmi_model, var_name, &var_value);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status confirming arbitrary value was set for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        if (!confirm_matches_expected_doubles(*current_arb_val, var_value)) {
-            printf("\nArbitrary value was not set as expected for '%s'", var_name);
+        if (!confirm_matches_expected_ints(set_val, get_val)) {
+            printf("\nset/get round-trip failed for 'verbosity'");
             return TEST_RETURN_CODE_FAIL;
         }
     }
+
+    /* --- Array state: set → get round-trip for state_soil_moisture_theta --- */
+    {
+        double set_theta[TEST_NDISC] = {0.11, 0.22, 0.33, 0.44};
+        double get_theta[TEST_NDISC] = {0};
+        bmi_status = m->set_value(m, "state_soil_moisture_theta", set_theta);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nset_value FAILED for 'state_soil_moisture_theta'");
+            return TEST_RETURN_CODE_FAIL;
+        }
+        bmi_status = m->get_value(m, "state_soil_moisture_theta", get_theta);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_value FAILED after set for 'state_soil_moisture_theta'");
+            return TEST_RETURN_CODE_FAIL;
+        }
+        for (int i = 0; i < TEST_NDISC; i++) {
+            if (!confirm_matches_expected_doubles(set_theta[i], get_theta[i])) {
+                printf("\nset/get round-trip failed for state_soil_moisture_theta[%d]", i);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
+
+    /* --- Array state: set → get round-trip for state_nash_subsurface_storage --- */
+    {
+        double set_nash[TEST_N_NASH_SUBSURFACE] = {0.001, 0.002};
+        double get_nash[TEST_N_NASH_SUBSURFACE] = {0};
+        bmi_status = m->set_value(m, "state_nash_subsurface_storage", set_nash);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nset_value FAILED for 'state_nash_subsurface_storage'");
+            return TEST_RETURN_CODE_FAIL;
+        }
+        bmi_status = m->get_value(m, "state_nash_subsurface_storage", get_nash);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_value FAILED after set for 'state_nash_subsurface_storage'");
+            return TEST_RETURN_CODE_FAIL;
+        }
+        for (int i = 0; i < TEST_N_NASH_SUBSURFACE; i++) {
+            if (!confirm_matches_expected_doubles(set_nash[i], get_nash[i])) {
+                printf("\nset/get round-trip failed for state_nash_subsurface_storage[%d]", i);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
+
+    /* --- Array state: set → get round-trip for state_giuh_queue --- */
+    {
+        double set_giuh[TEST_N_GIUH_ORDINATES] = {0.01, 0.02, 0.03, 0.04, 0.05};
+        double get_giuh[TEST_N_GIUH_ORDINATES] = {0};
+        bmi_status = m->set_value(m, "state_giuh_queue", set_giuh);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nset_value FAILED for 'state_giuh_queue'");
+            return TEST_RETURN_CODE_FAIL;
+        }
+        bmi_status = m->get_value(m, "state_giuh_queue", get_giuh);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_value FAILED after set for 'state_giuh_queue'");
+            return TEST_RETURN_CODE_FAIL;
+        }
+        for (int i = 0; i < TEST_N_GIUH_ORDINATES; i++) {
+            if (!confirm_matches_expected_doubles(set_giuh[i], get_giuh[i])) {
+                printf("\nset/get round-trip failed for state_giuh_queue[%d]", i);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
+
+    /* --- Calibration parameters: set → get round-trip --- */
+    {
+        /* Must match param_var_names[] in bmi_cfe.c */
+        static const char* cal_params[] = {
+            "soil_effective_porosity", "soil_saturated_hydraulic_conductivity",
+            "soil_percolation_rate_limiter", "soil_Clapp_Hornberger_b",
+            "soil_lateral_flow_K", "subsurface_nash_K",
+            "gw_discharge_coefficient", "gw_discharge_exponent",
+            "gw_max_storage_m", "soil_saturated_capillary_head",
+            "soil_wilting_point", "soil_field_capacity_fraction",
+            "refkdt", "Xinanjiang_inflection_a",
+            "Xinanjiang_shape_b", "Xinanjiang_shape_x",
+            "Priestley_Taylor_alpha", "soil_ice_imperv_threshold"
+        };
+        int n_cal = sizeof(cal_params) / sizeof(cal_params[0]);
+        for (int i = 0; i < n_cal; i++) {
+            double set_val = 1.23 + i;
+            double get_val = -1.0;
+            bmi_status = m->set_value(m, cal_params[i], &set_val);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nset_value FAILED for calibration param '%s'", cal_params[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            bmi_status = m->get_value(m, cal_params[i], &get_val);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nget_value FAILED after set for calibration param '%s'", cal_params[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            if (!confirm_matches_expected_doubles(set_val, get_val)) {
+                printf("\nset/get round-trip failed for calibration param '%s'", cal_params[i]);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
+
     return TEST_RETURN_CODE_PASS;
 }
 
 int test_set_value_at_indices(TestFixture* fixture)
 {
-    // This should basically work the same as the test for set_value, just setting only at indices 0
-
-    // For this, we need to be able to initialize first
-    int bmi_status = fixture->bmi_model->initialize(fixture->bmi_model, fixture->cfg_file);
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
     if (bmi_status != BMI_SUCCESS) {
-        printf("\nReturned BMI_FAILURE status code attempting to initialize (in order to test set_value)");
+        printf("\nFailed to initialize for test_set_value_at_indices");
         return TEST_RETURN_CODE_FAIL;
     }
 
-    char var_type[BMI_MAX_TYPE_NAME];
-    double var_value, zero_value = 0.0;
-    int indices[1] = {0};
+    /* --- Set individual soil theta elements and verify via get_value_at_indices --- */
+    {
+        double test_vals[TEST_NDISC] = {0.41, 0.42, 0.43, 0.44};
+        for (int idx = 0; idx < TEST_NDISC; idx++) {
+            int indices[1] = {idx};
+            bmi_status = m->set_value_at_indices(m, "state_soil_moisture_theta", indices, 1, &test_vals[idx]);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nset_value_at_indices FAILED for state_soil_moisture_theta[%d]", idx);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            double readback = -1.0;
+            bmi_status = m->get_value_at_indices(m, "state_soil_moisture_theta", &readback, indices, 1);
+            if (bmi_status != BMI_SUCCESS) {
+                printf("\nget_value_at_indices FAILED after set for state_soil_moisture_theta[%d]", idx);
+                return TEST_RETURN_CODE_FAIL;
+            }
+            if (!confirm_matches_expected_doubles(test_vals[idx], readback)) {
+                printf("\nset/get at_indices round-trip failed for state_soil_moisture_theta[%d]", idx);
+                return TEST_RETURN_CODE_FAIL;
+            }
+        }
+    }
 
-    double arbitrary_values[EXPECTED_INPUT_VAR_COUNT];
-    get_arbitrary_input_var_values(fixture->current_test_example, 0, arbitrary_values);
-
-    for (int i = 0; i < EXPECTED_INPUT_VAR_COUNT; i++) {
-        // Have local var for this just for readability
-        const char* var_name = fixture->expected_input_var_names[i];
-        // Sanity check the test's validity
-        bmi_status = fixture->bmi_model->get_var_type(fixture->bmi_model, var_name, var_type);
+    /* --- Set scalar double input at index 0 and verify round-trip --- */
+    {
+        double set_val = 0.0088;
+        double get_val = -1.0;
+        int indices[1] = {0};
+        bmi_status = m->set_value_at_indices(m, "rainfall_depth_m", indices, 1, &set_val);
         if (bmi_status != BMI_SUCCESS) {
-            printf("\nBMI_FAILURE status checking type for '%s' (while testing set_value_at_indices)", var_name);
+            printf("\nset_value_at_indices FAILED for scalar 'rainfall_depth_m'");
             return TEST_RETURN_CODE_FAIL;
         }
-        // v3: skip non-double inputs (e.g. verbosity=int, forcing_file_path=string)
-        if (strcmp(var_type, "double") != 0) continue;
-
-        // First, test setting input var to 0
-        bmi_status = fixture->bmi_model->set_value_at_indices(fixture->bmi_model, var_name, indices, 1, &zero_value);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status setting zero value at index 0 for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        // And confirm
-        bmi_status = fixture->bmi_model->get_value_at_indices(fixture->bmi_model, var_name, &var_value, indices, 1);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status confirming zero value was set at index 0 for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        if (!confirm_matches_expected_doubles(zero_value, var_value)) {
-            printf("\nZero value was not set as expected for at index 0 '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-
-        // Now, set to the arbitrary value
-        double* current_arb_val = arbitrary_values + i;
-        bmi_status = fixture->bmi_model->set_value_at_indices(fixture->bmi_model, var_name, indices, 1, current_arb_val);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status setting arbitrary value at index 0 for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        // And confirm
-        bmi_status = fixture->bmi_model->get_value_at_indices(fixture->bmi_model, var_name, &var_value, indices, 1);
-        if (bmi_status != BMI_SUCCESS) {
-            printf("\nReturned BMI_FAILURE status confirming arbitrary value at index 0 was set for '%s'", var_name);
-            return TEST_RETURN_CODE_FAIL;
-        }
-        if (!confirm_matches_expected_doubles(*current_arb_val, var_value)) {
-            printf("\nArbitrary value was not set as expected at index 0 for '%s'", var_name);
+        m->get_value_at_indices(m, "rainfall_depth_m", &get_val, indices, 1);
+        if (!confirm_matches_expected_doubles(set_val, get_val)) {
+            printf("\nset/get at_indices round-trip failed for scalar 'rainfall_depth_m'");
             return TEST_RETURN_CODE_FAIL;
         }
     }
+
     return TEST_RETURN_CODE_PASS;
 }
 
@@ -1437,6 +1694,8 @@ int main(int argc, const char* argv[])
         result = test_get_value_ptr(fixture);
     else if (strcmp(argv[1], "test_mass_balance_protocol") == 0)
         result = test_mass_balance_protocol(fixture);
+    else if (strcmp(argv[1], "test_grid_consistency") == 0)
+        result = test_grid_consistency(fixture);
     else if (strcmp(argv[1], "test_get_var_grid") == 0)
         result = test_get_var_grid(fixture);
     else if (strcmp(argv[1], "test_get_var_itemsize") == 0)

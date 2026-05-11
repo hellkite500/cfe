@@ -465,7 +465,9 @@ main(int argc, const char *argv[]){
     printf(" current time: %f\n", now);
   }
   
-  /* v3: mass balance tracked internally by CFE_Model_Context */
+  /* v3: mass balance tracked internally by CFE_Model_Context.
+   * See test_mass_balance_protocol in test_bmi_model.c for the ngen
+   * mass balance protocol validation (mass_in = mass_out + mass_stored + mass_leaked). */
   // Test BMI: CONTROL FUNCTION finalize()
   {
     printf("\n finalizing...\n");

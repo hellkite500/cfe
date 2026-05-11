@@ -161,10 +161,16 @@ bool get_output_var_values(TestFixture* fixture, double* value_array)
         bool is_int = (strcmp(check_type, "int") == 0);
         bool is_double = (strcmp(check_type, "double") == 0);
 
-        /* skip array variables — their grid id > 0 */
+        /* skip array variables (grid id > 0) and non-numeric types */
         int grid_id = 0;
         fixture->bmi_model->get_var_grid(fixture->bmi_model, var_name, &grid_id);
-        if (grid_id > 0 || (!is_int && !is_double)) {
+        if (grid_id > 0) {
+            printf("\n  [get_output_var_values] skipping array variable '%s' (grid %d)", var_name, grid_id);
+            value_array[i] = 0.0;
+            continue;
+        }
+        if (!is_int && !is_double) {
+            printf("\n  [get_output_var_values] skipping non-numeric variable '%s' (type '%s')", var_name, check_type);
             value_array[i] = 0.0;
             continue;
         }
@@ -233,9 +239,12 @@ bool set_specified_input_variables_before_update(const TestFixture* fixture, dou
             printf("\nCan't set module inputs to advance; test helper function encountered BMI_FAILURE getting type of variable '%s' for sanity check", fixture->expected_input_var_names[i]);
             return false;
         }
-        /* v3: skip non-double inputs (verbosity=int, forcing_file_path=string) */
-        if (strcmp(var_type, "double") != 0)
+        /* v3: only set double inputs; log skips for non-double types */
+        if (strcmp(var_type, "double") != 0) {
+            printf("\n  [set_inputs] skipping non-double input '%s' (type '%s')",
+                   fixture->expected_input_var_names[i], var_type);
             continue;
+        }
         bmi_status = fixture->bmi_model->set_value(fixture->bmi_model, fixture->expected_input_var_names[i], input_var_values + i);
         if (bmi_status == BMI_FAILURE) {
             printf("\nCan't set module inputs to advance; test helper function encountered BMI_FAILURE attempting to set variable '%s'", fixture->expected_input_var_names[i]);
