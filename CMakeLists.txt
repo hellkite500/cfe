@@ -73,6 +73,11 @@ set_target_properties(cfebmi PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(cfebmi PROPERTIES PUBLIC_HEADER ./include/bmi_cfe.h)
 
 ####################################################################################################################
+# Config migration utility (v2 -> v3, self-contained, no library dependency)
+add_executable(cfe_migrate_config ./tools/cfe_migrate_config.c)
+target_link_libraries(cfe_migrate_config PRIVATE m)
+
+####################################################################################################################
 # CFE BMI driver executable (used by integration tests and standalone operation)
 add_executable(cfe_bmi_driver ./src/cfe_bmi_driver.c)
 target_include_directories(cfe_bmi_driver PRIVATE ${PROJECT_SOURCE_DIR}/include)
@@ -95,7 +100,7 @@ enable_testing()
 add_executable(combined_bmi_funcs_test test/combined_bmi_funcs_test.c)
 target_include_directories(combined_bmi_funcs_test PUBLIC ${PROJECT_SOURCE_DIR}/include test/include)
 target_link_libraries(combined_bmi_funcs_test cfebmi)
-add_test(NAME combined_bmi_funcs_test_1 COMMAND combined_bmi_funcs_test ${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.txt)
+add_test(NAME combined_bmi_funcs_test_1 COMMAND combined_bmi_funcs_test ${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.cf3)
 # End combined_bmi_funcs_test tests
 ####################################################################################################################
 
@@ -105,7 +110,7 @@ add_test(NAME combined_bmi_funcs_test_1 COMMAND combined_bmi_funcs_test ${PROJEC
 add_executable(test_bmi_model ./test/test_bmi_model.c test/bmi_test_utils.c test/bmi_test_utils.c test/general_test_utils.c)
 target_include_directories(test_bmi_model PUBLIC ${PROJECT_SOURCE_DIR}/include test/include)
 target_link_libraries(test_bmi_model cfebmi)
-target_compile_definitions(test_bmi_model PUBLIC BMI_INIT_CONFIG_EX_1="${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.txt")
+target_compile_definitions(test_bmi_model PUBLIC BMI_INIT_CONFIG_EX_1="${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.cf3")
 
 # For the 'test_bmi_model' executable, the test example can be explicitly passed (although for now there is only 1)
 add_test(NAME test_initialize_1 COMMAND test_bmi_model test_initialize 1)
@@ -167,15 +172,15 @@ add_test(NAME test_get_grid_z_1 COMMAND test_bmi_model test_get_grid_z)
 set(INTEGRATION_TEST_SCRIPT ${PROJECT_SOURCE_DIR}/test/run_integration_test.sh)
 set(FORCING_FILE ${PROJECT_SOURCE_DIR}/forcings/cat87_01Dec2015.csv)
 
-add_test(NAME integration_v2_legacy
+add_test(NAME integration_v2_migrated
     COMMAND bash ${INTEGRATION_TEST_SCRIPT}
         $<TARGET_FILE:cfe_bmi_driver>
-        ${PROJECT_SOURCE_DIR}/configs/legacy_cfe_config_cat87.cf2
+        ${PROJECT_SOURCE_DIR}/configs/migrated_legacy_cat87.cf3
         ${FORCING_FILE}
         ${PROJECT_SOURCE_DIR}/test/golden/v2
         1e-10
 )
-set_tests_properties(integration_v2_legacy PROPERTIES LABELS "integration")
+set_tests_properties(integration_v2_migrated PROPERTIES LABELS "integration")
 
 add_test(NAME integration_v3_dsbm
     COMMAND bash ${INTEGRATION_TEST_SCRIPT}
