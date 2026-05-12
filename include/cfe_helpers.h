@@ -22,13 +22,13 @@
 
 int is_fabs_less_than_epsilon(double a,double epsilon);
 
-void set_parameters_defaults_2_1(cfe_parameters_struct* params);  // sets all defaultt parameter values
+void set_parameters_defaults(cfe_parameters_struct* params);
 
-void set_options_defaults_2_1(cfe_options_struct* opts); // sets defaults that are only meaningful cfe version>=2.1
+void set_options_defaults(cfe_options_struct* opts);
 
 void set_state_defaults(cfe_state_struct* state);        // sets all state variable defaults
 
-int normalize_config_units(CFE_CONFIG* config, int is_legacy);
+int normalize_config_units(CFE_CONFIG* config);
 
 int map_config_to_cfe_structs(CFE_CONFIG* config, cfe_parameters_struct* params, cfe_options_struct* options);
 
@@ -40,11 +40,11 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,              // 
                                              cfe_parameters_struct* params,
                                              cfe_options_struct* opts);
 
-/* Parse, validate, config file for all cfe versions */
-int parse_config_driver(const char* config_file, double config_file_version,  // calls different parser funcs
+/* Parse, validate, and map a v3 config file into CFE model structs */
+int parse_config_driver(const char* config_file, double config_file_version,
                              CFE_CONFIG* config,
-                             cfe_parameters_struct* params,                   // ffor cfe versions <2.1 and
-                             cfe_options_struct* opts);                       // versions > 2.0
+                             cfe_parameters_struct* params,
+                             cfe_options_struct* opts);
 
 /* Initialize state from params/options, allocating queues as needed */
 int cfe_initialize(const cfe_parameters_struct* params,

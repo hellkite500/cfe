@@ -24,7 +24,7 @@
 #endif
 
 // NDISC is the canonical constant (defined in cfe_soil_discrete.h).
-// NDISCS is a legacy alias used in config parsing — kept for compatibility.
+// NDISCS is an alias used in the config struct (plural form).
 #include "cfe_soil_discrete.h"
 #ifndef NDISCS
 #define NDISCS NDISC
@@ -46,7 +46,7 @@
 #define OPTION_STRING_LENGTH 64
 #endif
 //===============================================================
-// CFE 2.1 Configuration Structure added to support parsing.
+// CFE v3 Configuration Structure — temporary exchange between parser and model init.
 // Temporary exchange structure.   These elements are assigned to
 // one of the following structures as defined in cfe_types.h   
 //          const cfe_options_struct*    options

@@ -27,11 +27,15 @@ int cfe_context_create_from_config(const char* cfg_path, CFE_Model_Context** out
     if (ctx == NULL) return -1;
 
     double version = read_cfe_config_version(cfg_path);
-    if (fabs(version) < 1.0e-04) version = 2.0;
-    
-    /* Version is auto-detected by read_cfe_config_version (legacy defaults to 2.0).
-     * TODO: return specific error codes from parse/init so callers can distinguish
-     * config errors from initialization failures. */
+    if (fabs(version) < 1.0e-04) {
+        fprintf(stderr,
+            "WARNING: No cfe_config_version found in: %s\n"
+            "         Add cfe_config_version=3.0 to the config file to suppress this warning.\n"
+            "         If this is a legacy v2 config, use cfe_migrate_config to convert it.\n",
+            cfg_path);
+        version = 3.0;
+    }
+
     if (parse_config_driver(cfg_path, version, &ctx->config, &ctx->parameters, &ctx->options) != 0) {
         free(ctx);
         return -1;

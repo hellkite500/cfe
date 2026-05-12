@@ -191,6 +191,7 @@ extern void cfe(
 
   // if evaporation demand, take from surface retention depth if retention_depth>0, and water is stored there
   
+  // evap_struct->actual_et_from_retention_depth_m_per_timestep = 0.0;
 
 //  if (nash_surface_params->nash_storage != NULL &&  // only possible ffor Nash cascade surface routing
 //      nash_surface_params->retention_depth > 0.0 && // only possible iff surface has retention depth

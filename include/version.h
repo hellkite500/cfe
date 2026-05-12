@@ -19,8 +19,8 @@
 #define CFE_VERSION_PATCH 0
 #define CFE_VERSION_STRING "3.0.0-beta"
 
-/* Legacy float version — retained for config file version detection.
- * Prefer the integer macros above for new code. */
+/* Float version — used by config file version detection and hotstart output.
+ * Prefer the integer macros above for preprocessor guards. */
 #define CFE_VERSION 3.00
 #define CFE_SUBVERSION_STRING "beta"
 

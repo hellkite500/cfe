@@ -44,7 +44,7 @@ void print_usage(const char* prog)
         "  -dryrun       Run 120 time steps without forcing data (for testing).\n"
         "\n"
         "Examples:\n"
-        "  Note: N is 2 for legacy config format, 3 for new cfe version 3 format, but can have any suffix\n"
+        "  Note: Config file extension is arbitrary (.cf3, .cfn, etc.); version is read from cfe_config_version field.\n"
         "  %s -c config.cfN -f forcings/forcing.dat\n"
         "  %s -c config.cfN -f forcings/forcing.dat -q output/q.out -b output/volbal.out\n"
         "  %s -c config.cfN -f forcings/forcing.dat -x fluxes.out -s stores.out -t thetas.out\n",
@@ -845,6 +845,8 @@ void write_volume_balance_summary(FILE* output_fptr,
             vol_surface_end += final_state->nash_surface_storage_m[i];
     }
 
+//    double total_AET_vol  = volbal->vol_et_from_rain + volbal->vol_et_from_soil + 
+//                            volbal->vol_et_from_retention_depth;
 
     
     double total_AET_vol  = volbal->vol_et_from_rain + volbal->vol_et_from_soil;
@@ -856,6 +858,9 @@ void write_volume_balance_summary(FILE* output_fptr,
     const char* surface_name = (options->surface_routing_scheme == SURF_ROUTE_GIUH) ? "GIUH" : "Nash cascade";
         
     
+//    double aet_total  = volbal->vol_et_from_rain
+//                      + volbal->vol_et_from_soil
+//                      + volbal->vol_et_from_retention_depth;
 
     // GLOBAL VOLUME BALANCE
     double aet_total  = volbal->vol_et_from_rain
@@ -1060,7 +1065,7 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     fprintf(hotstart_fptr, "# Conceptual Functional Equivalent (CFE) to the WRF-Hydro Based NOAA/NWS\n");
     fprintf(hotstart_fptr, "# National Water Model (versions 3.1 and earlier) stormflow generation function]\n"); 
     fprintf(hotstart_fptr, "# Hotstart Configuration File, CFE v%3.1f %s\n", CFE_VERSION, CFE_SUBVERSION_STRING);
-    fprintf(hotstart_fptr, "# Compatible with CFE version 2.1 and later CFE model.\n");
+    fprintf(hotstart_fptr, "# Compatible with CFE v3.\n");
     fprintf(hotstart_fptr, "# Generated on: %04d-%02d-%02d %02d:%02d:%02d\n",
                                     lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
                                     lt.tm_hour, lt.tm_min, lt.tm_sec);
@@ -1193,7 +1198,6 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
         }
         fprintf(hotstart_fptr, "[m]\n");
       }
-//
     fprintf(hotstart_fptr, "\n");
 
     // Subsurface Lateral Flow Parameters (UPDATED FROM MODEL STATE)

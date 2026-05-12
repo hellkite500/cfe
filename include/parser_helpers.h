@@ -74,30 +74,18 @@ int parse_boolean(const char* value_str);
 void clean_quoted_string(char* str);
 
 /*
- * Find the config file format version (version 2.1 or >= version 2.1)
- * @return version number
+ * Scan config file for cfe_config_version key. Returns 0.0 if not found.
  */
 double read_cfe_config_version(const char* cfg_path);
 
-/*
- * This function parses the pre version 2.1 config file format
- */
-int parse_config_legacy_format(const char* filename, CFE_CONFIG* config);
-
-// helper function ffor parse_config_legacy_format()
-int split_legacy_config_line(const char* line, char* key, char* value, char* units);
-
 /**
- * Main function to parse CFE configuration file
- * @param filename Path to configuration file
- * @param config Pointer to CFE_CONFIG structure to populate
+ * Parse a CFE v3 configuration file into the CFE_CONFIG structure.
  * @return 0 on success, -1 on error
  */
-int parse_cfe_config_ge_v2_1(const char* filename, CFE_CONFIG* config);
+int parse_cfe_config(const char* filename, CFE_CONFIG* config);
 
 /**
- * The cfe2.1 parser calls this function after parsing to ensure that for each storage array read,
- *  the correct number of values was read, and properly applied.
+ * Validate that GIUH and Nash storage arrays have the expected element counts.
  */
 int validate_giuh_nash_arrays(CFE_CONFIG* config, const PARSER_ARRAY_COUNTS* counts);
 /**

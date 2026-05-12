@@ -88,7 +88,7 @@ static const char* partition_scheme_name(cfe_partition_scheme_t scheme)
 /* NOTE: cfe_parameters_struct uses fixed-size arrays only (no pointers).
  * This enables safe memset/calloc initialization. If pointers are ever
  * added, this function and cfe_finalize must be updated accordingly. */
-void set_parameters_defaults_2_1(cfe_parameters_struct* p)
+void set_parameters_defaults(cfe_parameters_struct* p)
 {
     if (p == NULL) return;
     memset(p, 0, sizeof(*p));
@@ -106,7 +106,7 @@ void set_parameters_defaults_2_1(cfe_parameters_struct* p)
 }
 
 //###########################
-void set_options_defaults_2_1(cfe_options_struct* o)
+void set_options_defaults(cfe_options_struct* o)
 {
     if (o == NULL) return;
     memset(o, 0, sizeof(*o));
@@ -121,78 +121,21 @@ void set_state_defaults(cfe_state_struct* s)
     memset(s, 0, sizeof(*s));
 }
 
-// Handle version-specific unit normalization and defaults
+// Sanity checks on parsed config values
 //########################
-int normalize_config_units(CFE_CONFIG* config, int is_legacy) {
-    
-    // Set version explicitly
-    if (is_legacy) {
-        config->version = 2.0;  // legacy family
-        // Default timestep ffor legacy (if not already set)
-        if (config->timestep_h <= 0.0) {
-            config->timestep_h = 1.0;
-        }
-    }
-    
-    // Unit conversions already handled by individual parsers:
-    // Legacy parser: m/s -> cm/h, m -> cm, theta -> absolute storage
-    // v>=2.1 parser: stores values as-is in expected units
-    
-    // Handle missing parameters ffor legacy configs
-    if (is_legacy) {
-        // Set v3.0+ features to defaults
-        config->control_soil_simulate_discrete_soil_moisture_true_false = FALSE;
-        config->control_soil_simulate_freeze_thaw_true_false = FALSE;
-        config->et_alpha_pt = 0.0;   // by defaultt, don't simulate ET using P-T
-        config->control_soil_use_lookup_table_num_points = 0;   // iff nonzero this tells code to use lookup table
-        config->control_ET_deepest_root_zone_discretization = 4;
-        
-        // Clear metadata not available in legacy
-        config->cat_id[0] = '\0';
-        config->cat_latitude = 0.0;
-        config->cat_longitude = 0.0;
-        config->cat_elev = 0.0;
-        config->cat_area_km2 = 0.0;
-        
-        if (config->surface_routing_num_giuh_ordinates < 1) {
-            config->surface_routing_num_giuh_ordinates = 1;
-            config->surface_routing_giuh_ordinates[0] = 1.0;
-            config->surface_routing_init_giuh_convolution_queue_m[0] = 0.0;
-            if (config->verbosity > 0)
-                fprintf(stderr, "WARNING: No GIUH ordinates in legacy config — using unit impulse (1 ordinate = 1.0)\n");
-        }
+int normalize_config_units(CFE_CONFIG* config) {
 
-        // Clear output configuration not available in legacy
-        config->output_status_warnings_filename[0] = '\0';
-        config->output_internal_fluxes_filename[0] = '\0';
-        config->output_internal_storages_filename[0] = '\0';
-        config->output_volume_balance_filename[0] = '\0';
-        config->output_soil_moisture_theta_filename[0] = '\0';
-        config->output_discharge_filename[0] = '\0';
-        config->output_time_standard_format[0] = '\0';
-
-        snprintf(config->output_file_delimiter, sizeof(config->output_file_delimiter), "space");
-        snprintf(config->output_value_format, sizeof(config->output_value_format), "%%.8f");
-
-        config->output_new_config_filename[0] = '\0';
-        
-        // Initialize discrete theta to invalid values (indicates not set)
-        for (int i = 0; i < NDISCS; i++) {
-            config->soil_reservoir_init_discrete_storage_theta[i] = -1.0;
-        }
-    }
-    
     // Basic sanity checks on critical values
     if (config->soil_depth_m <= 0.0) {
         fprintf(stderr, "ERROR: soil_depth_m must be > 0 after parsing\n");
         return -1;
     }
-    
+
     if (config->soil_effective_porosity <= 0.0 || config->soil_effective_porosity > 1.0) {
         fprintf(stderr, "ERROR: soil_effective_porosity must be in (0,1] after parsing\n");
         return -1;
     }
-    
+
     return 0;
 }
 
@@ -234,10 +177,7 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
     const double timestep_LOW_h         = 0.25;     
     const double timestep_HIGH_h        = 24.0;       
     
-    // Version flags
-    const int is_legacy = (cfg->version < 2.1);
-    const int has_discrete_moisture = (cfg->version >= 3.0 && 
-                                       cfg->control_soil_simulate_discrete_soil_moisture_true_false);
+    const int has_discrete_moisture = cfg->control_soil_simulate_discrete_soil_moisture_true_false;
     
     // Derived constraints
     const double max_soil_storage_m = cfg->soil_effective_porosity * cfg->soil_depth_m;
@@ -300,7 +240,7 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
         return -1;
     }
     
-    // Capillary head (legacy parser normalizes to cm, v>=2.1 already in cm)
+    // Capillary head (expected in cm in config)
     if (cfg->soil_sat_capillary_head_cm > 0) {
         if (is_oob(cfg->soil_sat_capillary_head_cm, satpsi_LOW_cm, satpsi_HIGH_cm)) {
             fprintf(stderr, "ERROR: soil_sat_capillary_head_cm %.3e out of bounds [%.3e, %.3e]\n",
@@ -375,7 +315,7 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
             }
         }
     } else {
-        // Standard soil storage (legacy parser converts to absolute storage)
+        // Standard soil storage (absolute storage in meters)
         if (is_oob(cfg->soil_reservoir_init_storage_m, 0.0, max_soil_storage_m)) {
             fprintf(stderr, "ERROR: soil_reservoir_init_storage_m %.3e m out of bounds [0, %.3e]\n",
                     cfg->soil_reservoir_init_storage_m, max_soil_storage_m);
@@ -432,42 +372,34 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
     //============================
     // Scheme-specific validation
     //============================
-    if (!is_legacy) {
-        // Partitioning scheme (exactly one) - CHANGED: using string_compare_ignore_case
-        int is_schaake = (string_compare_ignore_case(cfg->partitioning_scheme_name, "schaake") == 0);
-        int is_xinan   = (string_compare_ignore_case(cfg->partitioning_scheme_name, "xinanjiang") == 0);
-        if (!(is_schaake ^ is_xinan)) {
-            fprintf(stderr, "ERROR: Must specify exactly one partitioning scheme: 'schaake' or 'xinanjiang'\n");
+
+    // Partitioning scheme (exactly one)
+    int is_schaake = (string_compare_ignore_case(cfg->partitioning_scheme_name, "schaake") == 0);
+    int is_xinan   = (string_compare_ignore_case(cfg->partitioning_scheme_name, "xinanjiang") == 0);
+    if (!(is_schaake ^ is_xinan)) {
+        fprintf(stderr, "ERROR: Must specify exactly one partitioning scheme: 'schaake' or 'xinanjiang'\n");
+        return -1;
+    }
+
+    // Xinanjiang parameters (if selected)
+    if (is_xinan) {
+        if (is_oob(cfg->soil_Xinanjiang_tension_water_inflection_point, 0.0, 1.0)) {
+            fprintf(stderr, "ERROR: soil_Xinanjiang_tension_water_inflection_point %.3e out of bounds [0.0, 1.0]\n",
+                    cfg->soil_Xinanjiang_tension_water_inflection_point);
             return -1;
         }
-        
-        // Surface routing scheme (exactly one) - CHANGED: using string_compare_ignore_case
-//
-
-
-        // Xinanjiang parameters (if selected) - CHANGED: using string_compare_ignore_case
-        if (string_compare_ignore_case(cfg->partitioning_scheme_name, "xinanjiang") == 0) {
-            if (is_oob(cfg->soil_Xinanjiang_tension_water_inflection_point, 0.0, 1.0)) {
-                fprintf(stderr, "ERROR: soil_Xinanjiang_tension_water_inflection_point %.3e out of bounds [0.0, 1.0]\n",
-                        cfg->soil_Xinanjiang_tension_water_inflection_point);
-                return -1;
-            }
-            if (is_oob(cfg->soil_Xinanjiang_tension_water_soil_moist_distrib_exponent, 0.0, 1.0)) {
-                fprintf(stderr, "ERROR: soil_Xinanjiang_tension_water_soil_moist_distrib_exponent %.3e out of bounds [0.0, 1.0]\n",
-                        cfg->soil_Xinanjiang_tension_water_soil_moist_distrib_exponent);
-                return -1;
-            }
-            if (is_oob(cfg->soil_Xinanjiang_free_water_soil_moist_distrib_exponent, 0.0, 1.0)) {
-                fprintf(stderr, "ERROR: soil_Xinanjiang_free_water_soil_moist_distrib_exponent %.3e out of bounds [0.0, 1.0]\n",
-                        cfg->soil_Xinanjiang_free_water_soil_moist_distrib_exponent);
-                return -1;
-            }
+        if (is_oob(cfg->soil_Xinanjiang_tension_water_soil_moist_distrib_exponent, 0.0, 1.0)) {
+            fprintf(stderr, "ERROR: soil_Xinanjiang_tension_water_soil_moist_distrib_exponent %.3e out of bounds [0.0, 1.0]\n",
+                    cfg->soil_Xinanjiang_tension_water_soil_moist_distrib_exponent);
+            return -1;
+        }
+        if (is_oob(cfg->soil_Xinanjiang_free_water_soil_moist_distrib_exponent, 0.0, 1.0)) {
+            fprintf(stderr, "ERROR: soil_Xinanjiang_free_water_soil_moist_distrib_exponent %.3e out of bounds [0.0, 1.0]\n",
+                    cfg->soil_Xinanjiang_free_water_soil_moist_distrib_exponent);
+            return -1;
         }
     }
-    
-    // Surface routing validation (all versions)
 
-    
     // GIUH validation - NEW: Added bounds checking ffor ordinates count
     
     if (cfg->surface_routing_num_giuh_ordinates < 1) {
@@ -503,7 +435,7 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
 // ---------------- Mapper ----------------
 // This function maps values from the cfe config struct (cfg) into stateless cfe arrays
 // Map config structt to CFE model structs with final unit conversions
-// Convert version >2.1 config entries from human-interpretable config units (cm/h, cm) to CFE model units (m, s)
+// Convert config entries from human-interpretable config units (cm/h, cm) to CFE model units (m, s)
 //######################################
 int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
                                              cfe_parameters_struct* p,
@@ -511,8 +443,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
 {
     if (cfg == NULL || p == NULL || o == NULL) return -1;
     
-    set_parameters_defaults_2_1(p);
-    set_options_defaults_2_1(o);
+    set_parameters_defaults(p);
+    set_options_defaults(o);
 
     o->cfe_version = cfg->version;
     // options
@@ -539,6 +471,14 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     trim_inplace(surf);
 
 //
+//
+//    if (equals_ic(surf, "NASH_CASCADE") || equals_ic(surf, "NASHCASCADE") || equals_ic(surf, "NASH")) {
+//        o->surface_routing_scheme = SURF_ROUTE_NASH_CASCADE;
+//    } else if (equals_ic(surf, "GIUH")) {
+//        o->surface_routing_scheme = SURF_ROUTE_GIUH;
+//    } else {
+//        o->surface_routing_scheme = SURF_ROUTE_GIUH;  // default
+//    }
 
     o->surface_routing_scheme = SURF_ROUTE_GIUH;  // default
 
@@ -748,25 +688,15 @@ int parse_config_driver(const char* cfg_path,
                         cfe_parameters_struct* params,
                         cfe_options_struct* options)
 {
-    // Determine which parser to use
-    int is_legacy = (cfg_version < 2.1);
-
-    // Step 1: Parse using appropriate parser
-    int status_flag;
-    if (is_legacy) {
-        status_flag = parse_config_legacy_format(cfg_path, config);
-    } else {
-        status_flag = parse_cfe_config_ge_v2_1(cfg_path, config);
-    }
-
+    // Parse config (v3 keyword format)
+    int status_flag = parse_cfe_config(cfg_path, config);
     if (status_flag != 0) {
-        fprintf(stderr, "ERROR: Failed to parse config file with %s parser\n",
-                is_legacy ? "legacy" : "v>=2.1");
+        fprintf(stderr, "ERROR: Failed to parse config file: %s\n", cfg_path);
         return status_flag;
     }
 
-    // Step 2: Normalize units and handle version differences
-    status_flag = normalize_config_units(config, is_legacy);
+    // Step 2: Normalize and validate
+    status_flag = normalize_config_units(config);
     if (status_flag != 0) {
         fprintf(stderr, "ERROR: Failed to normalize config units\n");
         return status_flag;

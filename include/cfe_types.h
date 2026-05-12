@@ -162,7 +162,7 @@ typedef enum {
 /* Options: switches and run controls (from config) */
 //############
 typedef struct {
-    double cfe_version;           // 1.0, 1.1, 2.0, 2.1, 3.0.  If 0.0, then assume 2.0
+    double cfe_version;           // from cfe_config_version key; defaults to 3.0
     cfe_partition_scheme_t liquid_partitioning_scheme;
     cfe_surface_route_t surface_routing_scheme;
     int time_step_seconds;

@@ -23,7 +23,7 @@
 #include <time.h>
 #include <string.h>
 #include "cfe_config.h"
-#include "cfe_helpers.h"               // read_init_config_cfe_2_1, set_state_defaults
+#include "cfe_helpers.h"
 #include "cfe_context.h"               // context create/update/destroy + setters/getters
 #include "cfe_types.h"                 // All data types used in cfe model, outputs, etc.
 #include "cfe.h"                       // includes volbal structure definition
@@ -55,11 +55,18 @@ int main(int argc, char* argv[])
 
     // 1. Read and parse configuration file
     double cfg_version = read_cfe_config_version(cmdline_args.cfg_path);
-    if (fabs(cfg_version) < 1.0e-04) cfg_version = 2.0; // legacy config files
-    
-    int status_flag = parse_config_driver(cmdline_args.cfg_path, cfg_version, &config, &params, &options); 
-    if (status_flag != 0) { 
-        fprintf(stderr, "RUNTIME ERROR: Failed to parse cfe config file.\n"); 
+    if (fabs(cfg_version) < 1.0e-04) {
+        fprintf(stderr,
+            "WARNING: No cfe_config_version found in: %s\n"
+            "         Add cfe_config_version=3.0 to the config file to suppress this warning.\n"
+            "         If this is a legacy v2 config, use cfe_migrate_config to convert it.\n",
+            cmdline_args.cfg_path);
+        cfg_version = 3.0;
+    }
+
+    int status_flag = parse_config_driver(cmdline_args.cfg_path, cfg_version, &config, &params, &options);
+    if (status_flag != 0) {
+        fprintf(stderr, "RUNTIME ERROR: Failed to parse cfe config file.\n");
         return 1;
     }
 
