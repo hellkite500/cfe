@@ -171,6 +171,7 @@ typedef struct {
     int enable_ET_Priestley_Taylor;
     int enable_freeze_thaw;
     int simulate_discrete_soil_moisture;
+    int deepest_root_zone_disc;       // 1..NDISC; used by DSBM ET extraction
     int use_soil_lookup_table;
     char input_forcing_filename[PATH_FILENAME_STRING_LENGTH];
 

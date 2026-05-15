@@ -411,6 +411,16 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
         return -1;
     }
     
+    // Deepest root zone discretization bounds
+    if (has_discrete_moisture) {
+        if (cfg->control_ET_deepest_root_zone_discretization < 1 ||
+            cfg->control_ET_deepest_root_zone_discretization > NDISC) {
+            fprintf(stderr, "ERROR: control_ET_deepest_root_zone_discretization must be 1..%d (got %d)\n",
+                    NDISC, cfg->control_ET_deepest_root_zone_discretization);
+            return -1;
+        }
+    }
+
     //============================
     // Warnings ffor non-critical issues
     //============================
@@ -492,6 +502,7 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     o->enable_ET_Priestley_Taylor      = (cfg->et_alpha_pt > 1.0e-03) ? TRUE : FALSE;   // iff alpha_pt not zero or tiny.
     o->enable_freeze_thaw              = cfg->control_soil_simulate_freeze_thaw_true_false;
     o->simulate_discrete_soil_moisture = cfg->control_soil_simulate_discrete_soil_moisture_true_false;
+    o->deepest_root_zone_disc          = cfg->control_ET_deepest_root_zone_discretization;
     o->use_soil_lookup_table           = (cfg->control_soil_use_lookup_table_num_points > 0) ? TRUE : FALSE;
     if(o->verbosity > 1) printf("DEBUG: Mapped use_soil_lookup_table = %d\n", o->use_soil_lookup_table);    
     
@@ -788,7 +799,9 @@ int cfe_initialize(const cfe_parameters_struct* p,
 
         // SoilControl - simulation parameters
         s->soil_control.ndisc = NDISC;
-        s->soil_control.deepest_root_disc = NDISC;  // all layers in root zone (or make configurable)
+        s->soil_control.deepest_root_disc = o->deepest_root_zone_disc;
+        if (s->soil_control.deepest_root_disc < 1) s->soil_control.deepest_root_disc = 1;
+        if (s->soil_control.deepest_root_disc > NDISC) s->soil_control.deepest_root_disc = NDISC;
         s->soil_control.use_ch_lookup_table = o->use_soil_lookup_table ? 1 : 0;
         s->soil_control.dt_hours = 1.0;  // CFE uses hourly timesteps
 
