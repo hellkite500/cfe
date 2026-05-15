@@ -26,7 +26,6 @@ struct NASH_CASCADE_PARAMETERS_STRUCTURE {
   double *nash_storage;         // storage array nash cascade reservoirs [m]
 
   int    is_riparian_gw;        // flag to turn on/off riparian groundwater (currently used in CASAM only)
-//  double K_infiltration;        // Fraction of storage per hour that moves from reservoirs to soil (time constant); [1/hour]
 };
 
 double nash_cascade_routing(double runoff_m, double soil_storage_deficit_m,

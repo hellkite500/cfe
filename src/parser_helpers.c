@@ -442,30 +442,6 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
                      "%s", units);
         }
 
-//        else if (string_compare_ignore_case(keyword, "surface_routing_num_nash_reservoirs") == 0) {
-//            config->surface_routing_num_nash_reservoirs = atoi(value_part);
-//        }
-//        else if (string_compare_ignore_case(keyword, "state_surface_routing_init_nash_cascade_storage_m") == 0) {
-//            array_counts.num_surf_nash_storages_read = parse_double_array(value_part, 
-//                                                               config->surface_routing_nash_cascade_init_storage_m, 
-//                                                               MAX_NUM_SURFACE_NASH_CASCADE);
-//            snprintf(config->surface_routing_nash_cascade_init_storage_units, 
-//                     sizeof(config->surface_routing_nash_cascade_init_storage_units),
-//                     "%s", units);
-//        }
-//        else if (string_compare_ignore_case(keyword, "surface_routing_nash_reservoir_time_constant_k") == 0) {
-//            config->surface_routing_nash_K = atof(value_part);
-//            snprintf(config->surface_routing_nash_units, sizeof(config->surface_routing_nash_units), "%s", units);
-//        }
-//        else if (string_compare_ignore_case(keyword, "surface_nash_cascade_infil_rate_time_const_Kinf") == 0) {
-//            config->surface_nash_cascade_infil_rate_const_Kinf = atof(value_part);
-//            snprintf(config->surface_nash_cascade_infil_rate_const_Kinf_units, sizeof(config->surface_nash_cascade_infil_rate_const_Kinf_units), "%s", units);
-//        }
-//        else if (string_compare_ignore_case(keyword, "surface_nash_cascade_retention_depth_cm") == 0) {
-//            config->surface_nash_cascade_retention_depth_cm = atof(value_part);
-//            snprintf(config->surface_nash_cascade_retention_depth_cm_units, sizeof(config->surface_nash_cascade_retention_depth_cm_units), "%s", units);
-//        }
-
         else if (string_compare_ignore_case(keyword, "partitioning_Xinanjiang_tension_water_inflection_point") == 0) {
             config->soil_Xinanjiang_tension_water_inflection_point = atof(value_part);
         }
@@ -601,27 +577,7 @@ int validate_and_fix_output_format(char* format_str, size_t buffer_size) {
 //###########################
 int validate_giuh_arrays(CFE_CONFIG* config, const PARSER_ARRAY_COUNTS* counts) {
 
-//    // Surface Nash cascade validation------------------------
-//    if (string_compare_ignore_case(config->surface_routing_scheme_name, "nash_cascade") == 0) {
-//        int expected_num = config->surface_routing_num_nash_reservoirs;
-//        int num_read = counts->num_surf_nash_storages_read;
-//        
-//        if (num_read != expected_num) {
-//            fprintf(stderr, "ERROR: Expected %d surface Nash storage values, read: %d\n", 
-//                    expected_num, num_read);
-//            return -1;
-//        }
-//        // Ensure that there are no negative storages input
-//        for (int i = 0; i < expected_num; i++) {
-//            if (config->surface_routing_nash_cascade_init_storage_m[i] < 0.0) {
-//                fprintf(stderr, "ERROR: Surface Nash storage[%d] cannot be negative: %.6f\n", 
-//                        i, config->surface_routing_nash_cascade_init_storage_m[i]);
-//                return -1;
-//            }
-//        } 
-//    }
-    
-    // GIUH validation----------------------
+    // GIUH validation
     int expected_num = config->surface_routing_num_giuh_ordinates;
     int ordinates_read = counts->num_giuh_ordinates_read;
     int queue_read = counts->num_giuh_convolution_read;

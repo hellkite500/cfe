@@ -189,23 +189,6 @@ extern void cfe(
   volbal_struct->vol_et_to_atm    += evap_struct->actual_et_from_rain_m_per_timestep;
   volbal_struct->volout           += evap_struct->actual_et_from_rain_m_per_timestep;
 
-  // if evaporation demand, take from surface retention depth if retention_depth>0, and water is stored there
-  
-  // evap_struct->actual_et_from_retention_depth_m_per_timestep = 0.0;
-
-//  if (nash_surface_params->nash_storage != NULL &&  // only possible ffor Nash cascade surface routing
-//      nash_surface_params->retention_depth > 0.0 && // only possible iff surface has retention depth
-//      nash_surface_params->nash_storage[0] > 0.0 && // only possible iff water exists in retention storage
-//      evap_struct->reduced_potential_et_m_per_timestep > 0.0)
-//  {
-//    et_from_retention_depth(nash_surface_params, evap_struct);
-//  }
-//
-//  volbal_struct->vol_et_from_retention_depth += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-//  volbal_struct->vol_et_to_atm += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-//  volbal_struct->volout += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-//  volbal_struct->vol_out_surface += evap_struct->actual_et_from_retention_depth_m_per_timestep;
-
   evap_struct->actual_et_from_soil_m_per_timestep = 0.0;
 
   if (!yes_simulate_discrete_soil_moisture)

@@ -845,10 +845,6 @@ void write_volume_balance_summary(FILE* output_fptr,
             vol_surface_end += final_state->nash_surface_storage_m[i];
     }
 
-//    double total_AET_vol  = volbal->vol_et_from_rain + volbal->vol_et_from_soil + 
-//                            volbal->vol_et_from_retention_depth;
-
-    
     double total_AET_vol  = volbal->vol_et_from_rain + volbal->vol_et_from_soil;
  
     double volstart = volbal->volstart_soil + volbal->volstart_gw + volbal->volstart_surface + volbal->volstart_subsurface;
@@ -858,10 +854,6 @@ void write_volume_balance_summary(FILE* output_fptr,
     const char* surface_name = (options->surface_routing_scheme == SURF_ROUTE_GIUH) ? "GIUH" : "Nash cascade";
         
     
-//    double aet_total  = volbal->vol_et_from_rain
-//                      + volbal->vol_et_from_soil
-//                      + volbal->vol_et_from_retention_depth;
-
     // GLOBAL VOLUME BALANCE
     double aet_total  = volbal->vol_et_from_rain
                       + volbal->vol_et_from_soil;
