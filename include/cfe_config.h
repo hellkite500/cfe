@@ -30,6 +30,9 @@
 #define NDISCS NDISC
 #endif
 
+/* String buffer sizes for config struct fields.
+ * UNIT/CAT_NAME/OPTION are 64 bytes — sufficient for current usage.
+ * Override via compiler flag (e.g. -DUNIT_STRING_LENGTH=256) if needed. */
 #ifndef UNIT_STRING_LENGTH
 #define UNIT_STRING_LENGTH 64
 #endif

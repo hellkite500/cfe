@@ -1118,8 +1118,8 @@ int test_get_value_ptr(TestFixture* fixture)
             "soil_lateral_flow_K", "subsurface_nash_K",
             "gw_discharge_coefficient", "gw_discharge_exponent",
             "gw_max_storage_m", "soil_saturated_capillary_head",
-            "soil_wilting_point", "soil_field_capacity_fraction",
-            "refkdt", "Xinanjiang_inflection_a",
+            "soil_field_capacity_fraction",
+            "Xinanjiang_inflection_a",
             "Xinanjiang_shape_b", "Xinanjiang_shape_x",
             "Priestley_Taylor_alpha", "soil_ice_imperv_threshold"
         };
@@ -1465,8 +1465,8 @@ int test_set_value(TestFixture* fixture)
             "soil_lateral_flow_K", "subsurface_nash_K",
             "gw_discharge_coefficient", "gw_discharge_exponent",
             "gw_max_storage_m", "soil_saturated_capillary_head",
-            "soil_wilting_point", "soil_field_capacity_fraction",
-            "refkdt", "Xinanjiang_inflection_a",
+            "soil_field_capacity_fraction",
+            "Xinanjiang_inflection_a",
             "Xinanjiang_shape_b", "Xinanjiang_shape_x",
             "Priestley_Taylor_alpha", "soil_ice_imperv_threshold"
         };

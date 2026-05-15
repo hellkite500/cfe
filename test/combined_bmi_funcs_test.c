@@ -394,7 +394,7 @@ main(int argc, const char *argv[]){
   
   // v3 calibration parameter names exposed via set_value / get_value / get_value_ptr
   // These match the param_var_names[] array in bmi_cfe.c
-#define PARAM_COUNT 18
+#define PARAM_COUNT 16
   static const char *expected_param_names[PARAM_COUNT] = {
     "soil_effective_porosity",
     "soil_saturated_hydraulic_conductivity",
@@ -406,9 +406,7 @@ main(int argc, const char *argv[]){
     "gw_discharge_exponent",
     "gw_max_storage_m",
     "soil_saturated_capillary_head",
-    "soil_wilting_point",
     "soil_field_capacity_fraction",
-    "refkdt",
     "Xinanjiang_inflection_a",
     "Xinanjiang_shape_b",
     "Xinanjiang_shape_x",

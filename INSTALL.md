@@ -159,10 +159,14 @@ The realization config should reference the shared library and a v3 config:
 **Key outputs:** `discharge_m`, `surface_runoff_m`, `lateral_flow_m`,
 `baseflow_m`, `actual_et_m`
 
-**Calibration parameters** (18 total, accessible via `set_value` / `get_value_ptr`):
+**Calibration parameters** (16 total, accessible via `set_value` / `get_value_ptr`):
 `soil_effective_porosity`, `soil_saturated_hydraulic_conductivity`,
 `soil_Clapp_Hornberger_b`, `gw_discharge_coefficient`, `gw_discharge_exponent`,
 `gw_max_storage_m`, etc. See `bmi_cfe.c` `param_var_names[]` for the full list.
+
+Note: `refkdt` is a constant (=3.0, per Schaake et al. 1996) and is not
+calibratable. `soil_wilting_point` is auto-calculated from Clapp-Hornberger
+parameters and is not exposed as a calibration parameter.
 
 ### Notes
 

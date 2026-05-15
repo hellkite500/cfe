@@ -88,16 +88,14 @@ static const char* param_var_names[] = {
     "gw_discharge_exponent",                     /*  7  dimensionless */
     "gw_max_storage_m",                          /*  8  m */
     "soil_saturated_capillary_head",             /*  9  m */
-    "soil_wilting_point",                        /* 10  dimensionless */
-    "soil_field_capacity_fraction",              /* 11  Pcap/Patm */
-    "refkdt",                                   /* 12  dimensionless */
-    "Xinanjiang_inflection_a",                   /* 13  0-1 */
-    "Xinanjiang_shape_b",                        /* 14  dimensionless */
-    "Xinanjiang_shape_x",                        /* 15  dimensionless */
-    "Priestley_Taylor_alpha",                    /* 16  dimensionless */
-    "soil_ice_imperv_threshold"                  /* 17  dimensionless */
+    "soil_field_capacity_fraction",              /* 10  Pcap/Patm */
+    "Xinanjiang_inflection_a",                   /* 11  0-1 */
+    "Xinanjiang_shape_b",                        /* 12  dimensionless */
+    "Xinanjiang_shape_x",                        /* 13  dimensionless */
+    "Priestley_Taylor_alpha",                    /* 14  dimensionless */
+    "soil_ice_imperv_threshold"                  /* 15  dimensionless */
 };
-static const int PARAM_VAR_NAME_COUNT = 18;
+static const int PARAM_VAR_NAME_COUNT = 16;
 
 /* Resolve a v3 parameter name to a pointer into ctx->parameters.
  * Returns NULL if unrecognized. */
@@ -114,9 +112,7 @@ static double* param_field_ptr(CFE_Model_Context *ctx, const char *name) {
     if (strcmp(name, "gw_discharge_exponent") == 0)                 return &p->gw_discharge_exponent;
     if (strcmp(name, "gw_max_storage_m") == 0)                      return &p->gw_max_storage_m;
     if (strcmp(name, "soil_saturated_capillary_head") == 0)         return &p->sat_capillary_head_m;
-    if (strcmp(name, "soil_wilting_point") == 0)                    return &p->wilting_point;
     if (strcmp(name, "soil_field_capacity_fraction") == 0)          return &p->field_capacity_Pcap_over_Patm;
-    if (strcmp(name, "refkdt") == 0)                                return &p->refkdt;
     if (strcmp(name, "Xinanjiang_inflection_a") == 0)               return &p->xj_tension_inflection_0_1;
     if (strcmp(name, "Xinanjiang_shape_b") == 0)                    return &p->xj_tension_b;
     if (strcmp(name, "Xinanjiang_shape_x") == 0)                    return &p->xj_free_b;
@@ -300,7 +296,6 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
     }
     /* --- calibration parameter units (internal representation) --- */
     else if (strcmp(name, "soil_effective_porosity") == 0 ||
-             strcmp(name, "soil_wilting_point") == 0 ||
              strcmp(name, "soil_field_capacity_fraction") == 0 ||
              strcmp(name, "soil_percolation_rate_limiter") == 0 ||
              strcmp(name, "Xinanjiang_inflection_a") == 0 ||
@@ -323,7 +318,6 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "gw_discharge_exponent") == 0 ||
              strcmp(name, "Xinanjiang_shape_b") == 0 ||
              strcmp(name, "Xinanjiang_shape_x") == 0 ||
-             strcmp(name, "refkdt") == 0 ||
              strcmp(name, "Priestley_Taylor_alpha") == 0) {
         strcpy(units, "-");  /* dimensionless exponents and coefficients */
     }
