@@ -31,14 +31,13 @@
 #endif
 
 /* String buffer sizes for config struct fields.
- * UNIT/CAT_NAME/OPTION are 64 bytes — sufficient for current usage.
- * Override via compiler flag (e.g. -DUNIT_STRING_LENGTH=256) if needed. */
+ * Override via compiler flag (e.g. -DUNIT_STRING_LENGTH=512) if needed. */
 #ifndef UNIT_STRING_LENGTH
-#define UNIT_STRING_LENGTH 64
+#define UNIT_STRING_LENGTH 256
 #endif
 
 #ifndef CAT_NAME_STRING_LENGTH
-#define CAT_NAME_STRING_LENGTH 64
+#define CAT_NAME_STRING_LENGTH 256
 #endif
 
 #ifndef PATH_FILENAME_STRING_LENGTH
@@ -46,7 +45,7 @@
 #endif
 
 #ifndef OPTION_STRING_LENGTH
-#define OPTION_STRING_LENGTH 64
+#define OPTION_STRING_LENGTH 256
 #endif
 //===============================================================
 // CFE v3 Configuration Structure — temporary exchange between parser and model init.

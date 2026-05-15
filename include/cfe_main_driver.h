@@ -49,7 +49,7 @@ static int parse_time_string(const char* time_str, aorc_forcing_time_struct* for
 
 static int analyze_forcing_file(const char* forcing_filename, aorc_forcing_time_struct* forcing_time, int verbosity);
 
-static void format_timestamp(char* timestamp_str, int timestep, 
+static void format_timestamp(char* timestamp_str, size_t str_size, int timestep,
                              const aorc_forcing_time_struct* forcing_time,
                              const char* time_format);
 

@@ -553,12 +553,12 @@ int analyze_forcing_file(const char* forcing_filename, aorc_forcing_time_struct*
 
 // Format timestamp based on the requested format
 //####################
-void format_timestamp(char* timestamp_str, int timestep, 
+void format_timestamp(char* timestamp_str, size_t str_size, int timestep,
                      const aorc_forcing_time_struct* forcing_time,
                      const char* time_format) {
     
     if (string_compare_ignore_case(time_format, "timestep") == 0) {
-        sprintf(timestamp_str, "%d", timestep);
+        snprintf(timestamp_str, str_size, "%d", timestep);
     }
     else if (string_compare_ignore_case(time_format, "datetime") == 0) {
         // Build a struct tm from the forcing_time start (assumed UTC)
@@ -590,7 +590,7 @@ void format_timestamp(char* timestamp_str, int timestep,
     #endif
 
         // Format clean UTC timestamp
-        sprintf(timestamp_str, "%04d/%02d/%02d %02d:%02d:%02d",
+        snprintf(timestamp_str, str_size, "%04d/%02d/%02d %02d:%02d:%02d",
                 curr.tm_year + 1900,
                 curr.tm_mon + 1,
                 curr.tm_mday,
@@ -617,11 +617,11 @@ void format_timestamp(char* timestamp_str, int timestep,
         double julian_date = calculate_julian_date(current_year, current_month, current_day,
                                                   current_hour, forcing_time->minute, 
                                                   forcing_time->second);
-        sprintf(timestamp_str, "%.6f", julian_date);
+        snprintf(timestamp_str, str_size, "%.6f", julian_date);
     }
     else {
         // Default to timestep
-        sprintf(timestamp_str, "%d", timestep);
+        snprintf(timestamp_str, str_size, "%d", timestep);
     }
 }
 
@@ -693,7 +693,7 @@ void write_all_outputs(int timestep,
     
     // Format timestamp based on config option
     char timestamp_str[TIME_STRING_LENGTH];
-    format_timestamp(timestamp_str, timestep, forcing_time, options->output_time_standard_format);
+    format_timestamp(timestamp_str, sizeof(timestamp_str), timestep, forcing_time, options->output_time_standard_format);
 
 
     // Write discharge output

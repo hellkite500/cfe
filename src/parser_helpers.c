@@ -21,6 +21,15 @@
 #include "cfe_config.h"
 #include "cfe.h"  /* physics constants: GRAVITATIONAL_ACCELERATION_EARTH_m_per_s2, etc. */
 
+/* Safe string copy with guaranteed null termination.
+ * Used instead of snprintf(dst, sz, "%s", src) because GCC -Wformat-truncation
+ * warns when the source buffer is larger than the destination, even though
+ * snprintf handles truncation safely. strncpy avoids the diagnostic. */
+static inline void safe_strcpy(char *dst, size_t dst_size, const char *src) {
+    strncpy(dst, src, dst_size - 1);
+    dst[dst_size - 1] = '\0';
+}
+
 // Function to trim whitespace from a string
 //###################
 char* trim_whitespace(char* str) {
@@ -267,7 +276,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
             snprintf(config->timestep_units, sizeof(config->timestep_units), "%s", units);
         }
         else if (string_compare_ignore_case(keyword, "catchment_id") == 0) {
-            snprintf(config->cat_id, sizeof(config->cat_id), "%s", value_part);
+            safe_strcpy(config->cat_id, sizeof(config->cat_id), value_part);
         }
         else if (string_compare_ignore_case(keyword, "catchment_latitude_decimal_degree") == 0) {
             config->cat_latitude = atof(value_part);
@@ -290,7 +299,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
             snprintf(config->cat_impervious_units, sizeof(config->cat_impervious_units), "%s", units);
         }
         else if (string_compare_ignore_case(keyword, "control_input_forcing_filename") == 0) {
-            snprintf(config->control_input_forcing_filename, sizeof(config->control_input_forcing_filename), "%s", value_part);
+            safe_strcpy(config->control_input_forcing_filename, sizeof(config->control_input_forcing_filename), value_part);
         }
         else if (string_compare_ignore_case(keyword, "control_total_num_simulation_timesteps") == 0) {
             config->total_timesteps = atoi(value_part);
@@ -406,7 +415,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         else if (string_compare_ignore_case(keyword, "partitioning_scheme_name") == 0) {
             // Convert to lowercase for consistent comparison
             char temp_value[sizeof(config->partitioning_scheme_name)];
-            snprintf(temp_value, sizeof(temp_value), "%s", value_part);
+            safe_strcpy(temp_value, sizeof(temp_value), value_part);
             for (int i = 0; temp_value[i]; i++) {
                 temp_value[i] = tolower(temp_value[i]);
             }
@@ -416,7 +425,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
 //        else if (string_compare_ignore_case(keyword, "surface_routing_scheme_name") == 0) {
 //            // Convert to lowercase for consistent comparison
 //            char temp_value[sizeof(config->surface_routing_scheme_name)];
-//            snprintf(temp_value, sizeof(temp_value), "%s", value_part);
+//            safe_strcpy(temp_value, sizeof(temp_value), value_part);
 //            for (int i = 0; temp_value[i]; i++) {
 //                temp_value[i] = tolower(temp_value[i]);
 //            }
@@ -452,27 +461,27 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
             config->soil_Xinanjiang_free_water_soil_moist_distrib_exponent = atof(value_part);
         }
         else if (string_compare_ignore_case(keyword, "output_status_warnings_filename") == 0) {
-            snprintf(config->output_status_warnings_filename, sizeof(config->output_status_warnings_filename), "%s", value_part);
+            safe_strcpy(config->output_status_warnings_filename, sizeof(config->output_status_warnings_filename), value_part);
             clean_quoted_string(config->output_status_warnings_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_internal_fluxes_m_per_timestep_filename") == 0) {
-            snprintf(config->output_internal_fluxes_filename, sizeof(config->output_internal_fluxes_filename), "%s", value_part);
+            safe_strcpy(config->output_internal_fluxes_filename, sizeof(config->output_internal_fluxes_filename), value_part);
             clean_quoted_string(config->output_internal_fluxes_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_internal_storages_m_per_timestep_filename") == 0) {
-            snprintf(config->output_internal_storages_filename, sizeof(config->output_internal_storages_filename), "%s", value_part);
+            safe_strcpy(config->output_internal_storages_filename, sizeof(config->output_internal_storages_filename), value_part);
             clean_quoted_string(config->output_internal_storages_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_volume_balance_filename") == 0) {
-            snprintf(config->output_volume_balance_filename, sizeof(config->output_volume_balance_filename), "%s", value_part);
+            safe_strcpy(config->output_volume_balance_filename, sizeof(config->output_volume_balance_filename), value_part);
             clean_quoted_string(config->output_volume_balance_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_soil_moisture_theta_filename") == 0) {
-            snprintf(config->output_soil_moisture_theta_filename, sizeof(config->output_soil_moisture_theta_filename), "%s", value_part);
+            safe_strcpy(config->output_soil_moisture_theta_filename, sizeof(config->output_soil_moisture_theta_filename), value_part);
             clean_quoted_string(config->output_soil_moisture_theta_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_discharge_m_per_timestep_filename") == 0) {
-            snprintf(config->output_discharge_filename, sizeof(config->output_discharge_filename), "%s", value_part);
+            safe_strcpy(config->output_discharge_filename, sizeof(config->output_discharge_filename), value_part);
             clean_quoted_string(config->output_discharge_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_total_discharge_m3_per_sec_filename") == 0) {
@@ -481,29 +490,29 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
             clean_quoted_string(config->output_total_discharge_m3_per_sec_filename);
         }
         else if (string_compare_ignore_case(keyword, "output_path_name") == 0) {
-            snprintf(config->output_path_name, sizeof(config->output_path_name), "%s", value_part);
+            safe_strcpy(config->output_path_name, sizeof(config->output_path_name), value_part);
             clean_quoted_string(config->output_path_name);
         }
         else if (string_compare_ignore_case(keyword, "output_time_standard_format") == 0) {
-            snprintf(config->output_time_standard_format, sizeof(config->output_time_standard_format), "%s", value_part);
+            safe_strcpy(config->output_time_standard_format, sizeof(config->output_time_standard_format), value_part);
         }
         else if (string_compare_ignore_case(keyword, "output_file_delimiter") == 0) {
-            snprintf(config->output_file_delimiter, sizeof(config->output_file_delimiter), "%s", value_part);
+            safe_strcpy(config->output_file_delimiter, sizeof(config->output_file_delimiter), value_part);
         }
         else if (string_compare_ignore_case(keyword, "output_value_format") == 0) {
-            snprintf(config->output_value_format, sizeof(config->output_value_format), "%s", value_part);
+            safe_strcpy(config->output_value_format, sizeof(config->output_value_format), value_part);
             clean_quoted_string(config->output_value_format);
 
             // ensure that the specified output value format is valid- "%.Ne" or "%.Nf" where 0<N<16
             // iff not, set to defaultt "%.8f"
             if (!validate_and_fix_output_format(config->output_value_format, sizeof(config->output_value_format))) {
                 if (config->verbosity > 0) {
-                    fprintf(stderr, "WARNING: Invalid output_value_format, using default %.8f\n");
+                    fprintf(stderr, "WARNING: Invalid output_value_format, using default %%.8f\n");
                 }
             }
         }
         else if (string_compare_ignore_case(keyword, "output_new_config_filename_prefix") == 0) {
-            snprintf(config->output_new_config_filename, sizeof(config->output_new_config_filename), "%s", value_part);
+            safe_strcpy(config->output_new_config_filename, sizeof(config->output_new_config_filename), value_part);
             clean_quoted_string(config->output_new_config_filename);
             
         }

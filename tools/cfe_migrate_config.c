@@ -213,9 +213,10 @@ static int read_v2_config(const char *path, V2Config *v2)
         else if (ci_eq(key, "Cgw"))                     v2->cgw = atof(val);
         else if (ci_eq(key, "expon"))                   v2->gw_expon = atof(val);
         else if (ci_eq(key, "gw_storage"))              v2->gw_storage = atof(val);
-        else if (ci_eq(key, "K_nash_subsurface"))       v2->k_nash_subsurface = atof(val);
+        else if (ci_eq(key, "K_nash_subsurface") || ci_eq(key, "K_nash"))
+            v2->k_nash_subsurface = atof(val);
         else if (ci_eq(key, "K_lf"))                    v2->k_lf = atof(val);
-        else if (ci_eq(key, "nash_storage_subsurface"))
+        else if (ci_eq(key, "nash_storage_subsurface") || ci_eq(key, "nash_storage"))
             v2->num_nash_subsurface = parse_double_array(val, v2->nash_storage_subsurface, MAX_NASH);
         else if (ci_eq(key, "surface_water_partitioning_scheme")) {
             strncpy(v2->partitioning_scheme, val, MAX_VAL - 1);

@@ -506,10 +506,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     o->use_soil_lookup_table           = (cfg->control_soil_use_lookup_table_num_points > 0) ? TRUE : FALSE;
     if(o->verbosity > 1) printf("DEBUG: Mapped use_soil_lookup_table = %d\n", o->use_soil_lookup_table);    
     
-    if (cfg->control_input_forcing_filename != NULL) {
-        strncpy(o->input_forcing_filename, cfg->control_input_forcing_filename, sizeof(o->input_forcing_filename) - 1);
-        o->input_forcing_filename[sizeof(o->input_forcing_filename) - 1] = '\0';
-    }
+    strncpy(o->input_forcing_filename, cfg->control_input_forcing_filename, sizeof(o->input_forcing_filename) - 1);
+    o->input_forcing_filename[sizeof(o->input_forcing_filename) - 1] = '\0';
     
     // ET using Priestley-Taylor method
     if(o->enable_ET_Priestley_Taylor == TRUE) 
@@ -594,8 +592,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     // subsurface nash
     p->nash_subsurface_N = 2;
     p->nash_subsurface_K_per_h = cfg->subsurface_routing_nash_K; // per hour in kernel; convert in adapter if needed
-    if (cfg->subsurface_routing_nash_cascade_init_storage_m != NULL && p->nash_subsurface_N > 0) {
-        for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {  // fixed at 2
+    if (p->nash_subsurface_N > 0) {
+        for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
             p->nash_subsurface_init_storage_m[i] = cfg->subsurface_routing_nash_cascade_init_storage_m[i];
         }
     }
