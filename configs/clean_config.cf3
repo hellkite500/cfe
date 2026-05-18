@@ -28,7 +28,6 @@ gw_reservoir_max_storage_m=0.25[m]
 gw_discharge_coeff_m_per_timestep=1.8e-05[m h-1]
 gw_discharge_exponent=6.0[]
 partitioning_scheme_name=SCHAAKE
-surface_routing_scheme_name=GIUH
 surface_routing_num_giuh_ordinates = 5
 surface_routing_giuh_ordinates = 0.1, 0.2, 0.35, 0.25, 0.1 [m m-1]
 subsurface_routing_nash_reservoir_time_constant_k=0.03[h-1]

@@ -88,25 +88,12 @@ partitioning_Xinanjiang_tension_water_inflection_point=0.5[V V-1]
 partitioning_Xinanjiang_tension_water_soil_moist_distrib_exponent=1.0[]
 partitioning_Xinanjiang_free_water_soil_moist_distrib_exponent=1.0[]
 
-# Surface Routing Parameters
+# Surface Routing Parameters (GIUH only)
 #===========================
-# MUST BE one of NASH_CASCADE or GIUH
-#
-#----- GIUH 
-surface_routing_scheme_name=GIUH
 surface_routing_num_giuh_ordinates = 5  # must be fewer than MAX_NUM_GIUH_ORDINATES 11 as defined in giuh.h
 surface_routing_giuh_ordinates = 0.1, 0.2, 0.35, 0.25, 0.1 [m m-1]       // All ordinates must be listed, up to 10, and sum to 1.0
 #--- Convolution queue initial storage (STATE)
 state_surface_routing_init_giuh_convolution_queue_m=0.0, 0.0, 0.0, 0.0, 0.0[m] // STATE - must have a value for each ordinate
-
-#----- NASH_CASCADE
-#surface_routing_scheme_name= NASH_CASCADE  
-surface_routing_num_nash_reservoirs=2[]  # up to MAX_NUM_SURFACE_NASH_CASCADE  6 as defined in nash_cascade.h
-surface_routing_nash_reservoir_time_constant_k=0.83089[h-1]
-surface_nash_cascade_infil_rate_time_const_Kinf=0.0[h-1]
-surface_nash_cascade_retention_depth_cm=0.0[cm]
-#--- Initial surface Nash cascade storage (STATE)
-state_surface_routing_init_nash_cascade_storage_m=0.0,0.0[m]
 
 # Subsurface Lateral Flow Parameters
 #===========================
