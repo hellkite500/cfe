@@ -16,12 +16,14 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <stdint.h>
 #include "bmi.h"
 #include "bmi_cfe.h"
 #include "cfe_context.h"
 #include "cfe_helpers.h"
 #include "parser_helpers.h"
 #include "ngen_utilities.h"
+#include "cfe_serialize.h"
 
 /* ------------------------------------------------------------------ */
 /* Cast helper — extract CFE_Model_Context from the BMI data pointer  */
@@ -236,6 +238,10 @@ static int Get_var_grid(Bmi *self, const char *name, int *grid) {
 }
 
 static int Get_var_type(Bmi *self, const char *name, char *type) {
+    /* Serialization protocol variables */
+    if (get_serialization_var_type(name, type) == BMI_SUCCESS)
+        return BMI_SUCCESS;
+
     if (strcmp(name, "verbosity") == 0 ||
         strcmp(name, "state_current_timestep") == 0 ||
         strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
@@ -256,6 +262,10 @@ static int Get_var_type(Bmi *self, const char *name, char *type) {
 }
 
 static int Get_var_units(Bmi *self, const char *name, char *units) {
+    /* Serialization protocol variables */
+    if (get_serialization_unit(name, units) == BMI_SUCCESS)
+        return BMI_SUCCESS;
+
     if (strcmp(name, "rainfall_depth_m")         == 0 ||
         strcmp(name, "et_potential_m")           == 0 ||
         strcmp(name, "discharge_m")              == 0 ||
@@ -323,6 +333,10 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
 }
 
 static int Get_var_itemsize(Bmi *self, const char *name, int *size) {
+    /* Serialization protocol variables */
+    if (is_serialization_var(name))
+        return get_serialization_itemsize(name, size);
+
     if (strcmp(name, "verbosity") == 0 ||
         strcmp(name, "state_current_timestep") == 0 ||
         strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
@@ -339,6 +353,18 @@ static int Get_var_itemsize(Bmi *self, const char *name, int *size) {
 }
 
 static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
+    /* Serialization protocol variables */
+    if (is_serialization_var(name)) {
+        if (get_serialization_nbytes(name, nbytes) == BMI_SUCCESS)
+            return BMI_SUCCESS;
+        /* state: dynamic size from model context */
+        if (strcmp(name, NGEN_SERIALIZATION_STATE) == 0) {
+            *nbytes = CONTEXT(self) ? (int)CONTEXT(self)->serialized_size : 0;
+            return BMI_SUCCESS;
+        }
+        return BMI_FAILURE;  /* triggers */
+    }
+
     if (strcmp(name, "verbosity") == 0 ||
         strcmp(name, "state_current_timestep") == 0 ||
         strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
@@ -366,6 +392,9 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
 }
 
 static int Get_var_location(Bmi *self, const char *name, char *location) {
+    /* Serialization protocol vars have no spatial semantics */
+    if (is_serialization_var(name)) return BMI_FAILURE;
+
     /* Verify this is a recognized variable before returning location */
     char type[BMI_MAX_TYPE_NAME];
     if (Get_var_type(self, name, type) != BMI_SUCCESS) return BMI_FAILURE;
@@ -427,6 +456,19 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes);
 static int Get_value(Bmi *self, const char *name, void *dest) {
     if (CONTEXT(self) == NULL) return BMI_FAILURE;
 
+    /* Serialization protocol */
+    if (strcmp(name, NGEN_SERIALIZATION_SIZE) == 0) {
+        /* BMI GetVarNbytes uses int; serialized_size is size_t.
+         * Safe as long as serialized buffers stay under INT_MAX (~2 GB). */
+        *(int*)dest = (int)CONTEXT(self)->serialized_size;
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, NGEN_SERIALIZATION_STATE) == 0) {
+        if (CONTEXT(self)->serialized_state && CONTEXT(self)->serialized_size > 0)
+            memcpy(dest, CONTEXT(self)->serialized_state, CONTEXT(self)->serialized_size);
+        return BMI_SUCCESS;
+    }
+
     /* Arrays need element-by-element copy from the source array */
     if (strcmp(name, "state_soil_moisture_theta") == 0) {
         double *d = (double*)dest;
@@ -463,6 +505,11 @@ static int Get_value(Bmi *self, const char *name, void *dest) {
 static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     CFE_Model_Context *ctx = CONTEXT(self);
     if (ctx == NULL) return BMI_FAILURE;
+
+    /* --- ngen serialization protocol --- */
+    if (strcmp(name, NGEN_SERIALIZATION_SIZE) == 0)  { *dest = &ctx->serialized_size;  return BMI_SUCCESS; }
+    if (strcmp(name, NGEN_SERIALIZATION_STATE) == 0) { *dest = ctx->serialized_state;  return BMI_SUCCESS; }
+    /* Triggers (create/free) have no stored value — fall through to BMI_FAILURE */
 
     /* --- ngen mass balance protocol --- */
     if (strcmp(name, NGEN_MASS_IN) == 0)     { *dest = &ctx->volbal.cumulative_vol;   return BMI_SUCCESS; }
@@ -527,6 +574,19 @@ static int Get_value_at_indices(Bmi *self, const char *name, void *dest, int *in
 
 static int Set_value(Bmi *self, const char *name, void *src) {
     if (CONTEXT(self) == NULL) return BMI_FAILURE;
+
+    /* Serialization protocol */
+    if (strcmp(name, NGEN_SERIALIZATION_CREATE) == 0) {
+        cfe_serialize_create(CONTEXT(self));
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, NGEN_SERIALIZATION_FREE) == 0) {
+        cfe_serialize_free(CONTEXT(self));
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, NGEN_SERIALIZATION_STATE) == 0) {
+        return cfe_serialize_deserialize(CONTEXT(self), (const char*)src);
+    }
 
     /* Arrays need element-by-element copy into the target array */
     if (strcmp(name, "state_soil_moisture_theta") == 0) {

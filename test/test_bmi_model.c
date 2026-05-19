@@ -1597,6 +1597,442 @@ int test_update_until(TestFixture* fixture)
     return TEST_RETURN_CODE_PASS;
 }
 
+/*
+ * test_serialization_metadata
+ *
+ * Verify the ngen serialization protocol's check_support() probe would
+ * succeed: GetVarType and GetVarUnits resolve for all four reserved names
+ * with the exact expected values. Also verify trigger-specific behavior
+ * for GetVarItemsize and GetVarNbytes.
+ */
+int test_serialization_metadata(TestFixture* fixture)
+{
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize for test_serialization_metadata");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* Expected metadata for each reserved variable */
+    static const struct {
+        const char *name;
+        const char *type;
+        const char *units;
+        int itemsize_succeeds;  /* 0 = expect BMI_FAILURE */
+    } expected[] = {
+        { NGEN_SERIALIZATION_CREATE, "int",  "ngen::trigger", 0 },
+        { NGEN_SERIALIZATION_FREE,   "int",  "ngen::trigger", 0 },
+        { NGEN_SERIALIZATION_SIZE,   "int",  "bytes",         1 },
+        { NGEN_SERIALIZATION_STATE,  "char", "ngen::opaque",  1 },
+    };
+    int n = sizeof(expected) / sizeof(expected[0]);
+
+    for (int i = 0; i < n; i++) {
+        char type[BMI_MAX_TYPE_NAME] = {0};
+        bmi_status = m->get_var_type(m, expected[i].name, type);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_var_type FAILED for '%s'", expected[i].name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        if (strcmp(type, expected[i].type) != 0) {
+            printf("\nget_var_type for '%s': got '%s', expected '%s'",
+                   expected[i].name, type, expected[i].type);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        char units[BMI_MAX_UNITS_NAME] = {0};
+        bmi_status = m->get_var_units(m, expected[i].name, units);
+        if (bmi_status != BMI_SUCCESS) {
+            printf("\nget_var_units FAILED for '%s'", expected[i].name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        if (strcmp(units, expected[i].units) != 0) {
+            printf("\nget_var_units for '%s': got '%s', expected '%s'",
+                   expected[i].name, units, expected[i].units);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        int itemsize = -1;
+        bmi_status = m->get_var_itemsize(m, expected[i].name, &itemsize);
+        if (expected[i].itemsize_succeeds && bmi_status != BMI_SUCCESS) {
+            printf("\nget_var_itemsize unexpectedly FAILED for '%s'", expected[i].name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+        if (!expected[i].itemsize_succeeds && bmi_status != BMI_FAILURE) {
+            printf("\nget_var_itemsize should have FAILED for trigger '%s'", expected[i].name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+
+        int nbytes = -1;
+        bmi_status = m->get_var_nbytes(m, expected[i].name, &nbytes);
+        if (!expected[i].itemsize_succeeds && bmi_status != BMI_FAILURE) {
+            printf("\nget_var_nbytes should have FAILED for trigger '%s'", expected[i].name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* Verify serialization_size reports sizeof(int) for nbytes */
+    int size_nbytes = 0;
+    bmi_status = m->get_var_nbytes(m, NGEN_SERIALIZATION_SIZE, &size_nbytes);
+    if (bmi_status != BMI_SUCCESS || size_nbytes != sizeof(int)) {
+        printf("\nget_var_nbytes for serialization_size: got %d, expected %d",
+               size_nbytes, (int)sizeof(int));
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* Verify GetVarLocation returns BMI_FAILURE for all four */
+    for (int i = 0; i < n; i++) {
+        char loc[BMI_MAX_VAR_NAME] = {0};
+        bmi_status = m->get_var_location(m, expected[i].name, loc);
+        if (bmi_status != BMI_FAILURE) {
+            printf("\nget_var_location should have FAILED for '%s'", expected[i].name);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
+ * test_serialization_round_trip
+ *
+ * Emulate the ngen engine's save/restore protocol sequence and verify:
+ *  1. Captured state can be restored to produce identical model state
+ *  2. Model run from restored state produces identical outputs to a continuous run
+ */
+int test_serialization_round_trip(TestFixture* fixture)
+{
+    Bmi *m = fixture->bmi_model;
+    int bmi_status = m->initialize(m, fixture->cfg_file);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize for test_serialization_round_trip");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    double rain = 0.005, pet = 0.0;
+    int trigger = 1;
+
+    /* --- Phase 1: advance 5 steps to build up state --- */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        if (m->update(m) != BMI_SUCCESS) {
+            printf("\nUpdate failed at step %d (phase 1)", t);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* --- Phase 2: capture state via protocol --- */
+    /* SetValue(create) */
+    bmi_status = m->set_value(m, NGEN_SERIALIZATION_CREATE, &trigger);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nSetValue(create) failed");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* GetValue(size) */
+    int buf_size = 0;
+    bmi_status = m->get_value(m, NGEN_SERIALIZATION_SIZE, &buf_size);
+    if (bmi_status != BMI_SUCCESS || buf_size <= 0) {
+        printf("\nGetValue(size) failed or returned %d", buf_size);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* GetValue(state) */
+    char *saved_buf = (char*)malloc(buf_size);
+    bmi_status = m->get_value(m, NGEN_SERIALIZATION_STATE, saved_buf);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nGetValue(state) failed");
+        free(saved_buf);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* SetValue(free) */
+    m->set_value(m, NGEN_SERIALIZATION_FREE, &trigger);
+
+    /* --- Snapshot A: record all state variables at the capture point --- */
+    double snap_a_soil = 0, snap_a_gw = 0;
+    double snap_a_theta[NDISC] = {0};
+    double snap_a_nash[MAX_NUM_SUBSURFACE_NASH_CASCADE] = {0};
+    double snap_a_giuh[MAX_NUM_GIUH_ORDINATES] = {0};
+    m->get_value(m, "state_soil_storage_m", &snap_a_soil);
+    m->get_value(m, "state_gw_storage_m", &snap_a_gw);
+    m->get_value(m, "state_soil_moisture_theta", snap_a_theta);
+    m->get_value(m, "state_nash_subsurface_storage", snap_a_nash);
+    m->get_value(m, "state_giuh_queue", snap_a_giuh);
+
+    /* --- Phase 3: advance 5 more steps (mutate state) --- */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+    }
+
+    /* --- Phase 4: restore state from saved buffer --- */
+    bmi_status = m->set_value(m, NGEN_SERIALIZATION_STATE, saved_buf);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nSetValue(state) restore failed");
+        free(saved_buf);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* --- Snapshot B: verify state matches snapshot A (bit-exact) --- */
+    double snap_b_soil = 0, snap_b_gw = 0;
+    double snap_b_theta[NDISC] = {0};
+    double snap_b_nash[MAX_NUM_SUBSURFACE_NASH_CASCADE] = {0};
+    double snap_b_giuh[MAX_NUM_GIUH_ORDINATES] = {0};
+    m->get_value(m, "state_soil_storage_m", &snap_b_soil);
+    m->get_value(m, "state_gw_storage_m", &snap_b_gw);
+    m->get_value(m, "state_soil_moisture_theta", snap_b_theta);
+    m->get_value(m, "state_nash_subsurface_storage", snap_b_nash);
+    m->get_value(m, "state_giuh_queue", snap_b_giuh);
+
+    if (snap_a_soil != snap_b_soil || snap_a_gw != snap_b_gw) {
+        printf("\nScalar state mismatch after restore: soil=%.15e vs %.15e, gw=%.15e vs %.15e",
+               snap_a_soil, snap_b_soil, snap_a_gw, snap_b_gw);
+        free(saved_buf);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    for (int i = 0; i < NDISC; i++) {
+        if (snap_a_theta[i] != snap_b_theta[i]) {
+            printf("\ntheta[%d] mismatch: %.15e vs %.15e", i, snap_a_theta[i], snap_b_theta[i]);
+            free(saved_buf);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+    for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
+        if (snap_a_nash[i] != snap_b_nash[i]) {
+            printf("\nnash[%d] mismatch: %.15e vs %.15e", i, snap_a_nash[i], snap_b_nash[i]);
+            free(saved_buf);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+    for (int i = 0; i < MAX_NUM_GIUH_ORDINATES; i++) {
+        if (snap_a_giuh[i] != snap_b_giuh[i]) {
+            printf("\ngiuh[%d] mismatch: %.15e vs %.15e", i, snap_a_giuh[i], snap_b_giuh[i]);
+            free(saved_buf);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* --- Phase 5: run 5 steps from restored state, capture discharge --- */
+    double q_restored[5] = {0};
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+        m->get_value(m, "discharge_m", &q_restored[t]);
+    }
+
+    /* --- Phase 6: fresh run to same point, capture discharge --- */
+    m->finalize(m);
+    bmi_status = m->initialize(m, fixture->cfg_file);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to re-initialize for continuous comparison");
+        free(saved_buf);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* Run first 5 steps (same as phase 1) */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+    }
+    /* Run next 5 steps (same forcing as phase 5) */
+    double q_continuous[5] = {0};
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+        m->get_value(m, "discharge_m", &q_continuous[t]);
+    }
+
+    /* --- Phase 7: compare outputs --- */
+    for (int t = 0; t < 5; t++) {
+        if (q_restored[t] != q_continuous[t]) {
+            printf("\nDischarge mismatch at step %d: restored=%.15e continuous=%.15e",
+                   t, q_restored[t], q_continuous[t]);
+            free(saved_buf);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    printf("\n  round-trip: %d bytes, state bit-exact, outputs bit-exact over 5 post-restore steps",
+           buf_size);
+
+    free(saved_buf);
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
+ * test_serialization_round_trip_dsbm
+ *
+ * Same protocol sequence as test_serialization_round_trip but uses a config
+ * with simulate_discrete_soil_moisture=TRUE.  This exercises the sync of
+ * soil_state_in.theta_in / total_storage_m after deserialization — without
+ * which the first DSBM timestep would use stale values for rainfall
+ * partitioning.
+ */
+int test_serialization_round_trip_dsbm(TestFixture* fixture)
+{
+    (void)fixture;  /* uses its own BMI instance with DSBM config */
+    Bmi m_storage, *m = &m_storage;
+    register_bmi_cfe(m);
+
+    int bmi_status = m->initialize(m, BMI_INIT_CONFIG_DSBM);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize DSBM config for round-trip test");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    int dsbm_flag = 0;
+    m->get_value(m, "config_simulate_discrete_soil_moisture", &dsbm_flag);
+    if (dsbm_flag != 1) {
+        printf("\nDSBM config flag is %d, expected 1", dsbm_flag);
+        m->finalize(m);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    double rain = 0.005, pet = 0.0;
+    int trigger = 1;
+
+    /* --- Phase 1: advance 5 steps --- */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        if (m->update(m) != BMI_SUCCESS) {
+            printf("\nUpdate failed at step %d (phase 1)", t);
+            m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* --- Phase 2: capture state --- */
+    bmi_status = m->set_value(m, NGEN_SERIALIZATION_CREATE, &trigger);
+    if (bmi_status != BMI_SUCCESS) { printf("\nSetValue(create) failed"); m->finalize(m); return TEST_RETURN_CODE_FAIL; }
+
+    int buf_size = 0;
+    m->get_value(m, NGEN_SERIALIZATION_SIZE, &buf_size);
+    char *saved_buf = (char*)malloc(buf_size);
+    m->get_value(m, NGEN_SERIALIZATION_STATE, saved_buf);
+    m->set_value(m, NGEN_SERIALIZATION_FREE, &trigger);
+
+    /* Snapshot A */
+    double snap_a_soil = 0, snap_a_gw = 0;
+    double snap_a_theta[NDISC] = {0};
+    double snap_a_nash[MAX_NUM_SUBSURFACE_NASH_CASCADE] = {0};
+    double snap_a_giuh[MAX_NUM_GIUH_ORDINATES] = {0};
+    m->get_value(m, "state_soil_storage_m", &snap_a_soil);
+    m->get_value(m, "state_gw_storage_m", &snap_a_gw);
+    m->get_value(m, "state_soil_moisture_theta", snap_a_theta);
+    m->get_value(m, "state_nash_subsurface_storage", snap_a_nash);
+    m->get_value(m, "state_giuh_queue", snap_a_giuh);
+
+    /* --- Phase 3: advance 5 more steps (mutate) --- */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+    }
+
+    /* --- Phase 4: restore --- */
+    bmi_status = m->set_value(m, NGEN_SERIALIZATION_STATE, saved_buf);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nSetValue(state) restore failed");
+        free(saved_buf); m->finalize(m);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* Snapshot B: verify bit-exact */
+    double snap_b_soil = 0, snap_b_gw = 0;
+    double snap_b_theta[NDISC] = {0};
+    double snap_b_nash[MAX_NUM_SUBSURFACE_NASH_CASCADE] = {0};
+    double snap_b_giuh[MAX_NUM_GIUH_ORDINATES] = {0};
+    m->get_value(m, "state_soil_storage_m", &snap_b_soil);
+    m->get_value(m, "state_gw_storage_m", &snap_b_gw);
+    m->get_value(m, "state_soil_moisture_theta", snap_b_theta);
+    m->get_value(m, "state_nash_subsurface_storage", snap_b_nash);
+    m->get_value(m, "state_giuh_queue", snap_b_giuh);
+
+    if (snap_a_soil != snap_b_soil || snap_a_gw != snap_b_gw) {
+        printf("\nDSBM scalar state mismatch: soil=%.15e vs %.15e, gw=%.15e vs %.15e",
+               snap_a_soil, snap_b_soil, snap_a_gw, snap_b_gw);
+        free(saved_buf); m->finalize(m);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    for (int i = 0; i < NDISC; i++) {
+        if (snap_a_theta[i] != snap_b_theta[i]) {
+            printf("\nDSBM theta[%d] mismatch: %.15e vs %.15e", i, snap_a_theta[i], snap_b_theta[i]);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+    for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
+        if (snap_a_nash[i] != snap_b_nash[i]) {
+            printf("\nDSBM nash[%d] mismatch", i);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+    for (int i = 0; i < MAX_NUM_GIUH_ORDINATES; i++) {
+        if (snap_a_giuh[i] != snap_b_giuh[i]) {
+            printf("\nDSBM giuh[%d] mismatch", i);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* --- Phase 5: run 5 steps from restored state --- */
+    double q_restored[5] = {0};
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+        m->get_value(m, "discharge_m", &q_restored[t]);
+    }
+
+    /* --- Phase 6: fresh continuous run --- */
+    m->finalize(m);
+    bmi_status = m->initialize(m, BMI_INIT_CONFIG_DSBM);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to re-initialize DSBM for continuous comparison");
+        free(saved_buf);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+    }
+    double q_continuous[5] = {0};
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->update(m);
+        m->get_value(m, "discharge_m", &q_continuous[t]);
+    }
+
+    /* --- Phase 7: compare outputs --- */
+    for (int t = 0; t < 5; t++) {
+        if (q_restored[t] != q_continuous[t]) {
+            printf("\nDSBM discharge mismatch at step %d: restored=%.15e continuous=%.15e",
+                   t, q_restored[t], q_continuous[t]);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    printf("\n  DSBM round-trip: %d bytes, state bit-exact, outputs bit-exact over 5 post-restore steps",
+           buf_size);
+
+    free(saved_buf);
+    m->finalize(m);
+    return TEST_RETURN_CODE_PASS;
+}
+
 int main(int argc, const char* argv[])
 {
     char* config_file;
@@ -1711,6 +2147,12 @@ int main(int argc, const char* argv[])
         result = test_set_value(fixture);
     else if (strcmp(argv[1], "test_set_value_at_indices") == 0)
         result = test_set_value_at_indices(fixture);
+    else if (strcmp(argv[1], "test_serialization_metadata") == 0)
+        result = test_serialization_metadata(fixture);
+    else if (strcmp(argv[1], "test_serialization_round_trip") == 0)
+        result = test_serialization_round_trip(fixture);
+    else if (strcmp(argv[1], "test_serialization_round_trip_dsbm") == 0)
+        result = test_serialization_round_trip_dsbm(fixture);
     else
         printf("\nUnexpected test function %s\n", argv[1]);
 

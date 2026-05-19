@@ -247,30 +247,44 @@ typedef struct {
 
 } cfe_parameters_struct;
 
-/* State: storages and internal queues that evolve over time */
+/* State: storages and internal queues that evolve over time.
+ *
+ * SERIALIZATION NOTE — the fields marked [SERIALIZED] below are the
+ * minimum set required to checkpoint and restore a running model.
+ * They are packed into a binary buffer by cfe_serialize_create()
+ * and restored by cfe_serialize_deserialize().
+ *
+ * If you add, remove, or resize a serialized field, follow the
+ * developer checklist in cfe_serialize.h.  The byte layout diagram
+ * is in cfe_serialize.c.
+ *
+ * Remaining fields (deficit values, lookup tables, DSBM sub-structs,
+ * current_time_step) are either recomputed each timestep or set once
+ * during initialization and do not change — they are NOT serialized.
+ */
 //############
 typedef struct {
-    double soil_storage_m;
+    double soil_storage_m;              /* [SERIALIZED] conceptual soil reservoir */
     double soil_storage_deficit_m;
-    double gw_storage_m;
+    double gw_storage_m;                /* [SERIALIZED] groundwater reservoir */
     double gw_storage_deficit_m;
 
     double nash_surface_storage_m[MAX_NUM_SURFACE_NASH_CASCADE];
-    double nash_subsurface_storage_m[MAX_NUM_SUBSURFACE_NASH_CASCADE];
-    double giuh_queue_m[MAX_NUM_GIUH_ORDINATES];
-    double soil_discrete_storage_theta[NDISC];
+    double nash_subsurface_storage_m[MAX_NUM_SUBSURFACE_NASH_CASCADE]; /* [SERIALIZED] */
+    double giuh_queue_m[MAX_NUM_GIUH_ORDINATES];                      /* [SERIALIZED] */
+    double soil_discrete_storage_theta[NDISC];                        /* [SERIALIZED] */
 
-    // Lookup tables ffor discrete soil moisture (calculate once, use many times)
-    SoilLookupTables ch_lookup_tables;  
+    // Lookup tables for discrete soil moisture (calculated once during init)
+    SoilLookupTables ch_lookup_tables;
 
-   // Needed ffor discrete soil simulation
+    // DSBM sub-structs — initialized once, updated each timestep
     SoilControl      soil_control;
-    SoilGeometry     soil_geometry; 
+    SoilGeometry     soil_geometry;
     SoilParameters   soil_parameters;
-    SoilStateIn      soil_state_in;
+    SoilStateIn      soil_state_in;     /* theta_in synced from soil_discrete_storage_theta on restore */
     SoilStateOut     soil_state_out;
     SoilFluxes       soil_fluxes;
-    
+
     int current_time_step;
 } cfe_state_struct;    
 
@@ -389,6 +403,9 @@ typedef struct {
     double timestep_output_m;
     double timestep_storage_end_m;
     double vol_balance_residual_m;  /* cached: volstart + volin - volout - volend */
+    /* Serialization protocol buffer (ngen::serialization_*) */
+    char  *serialized_state;
+    size_t serialized_size;
 } CFE_Model_Context;
 
 #endif

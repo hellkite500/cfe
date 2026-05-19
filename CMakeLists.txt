@@ -44,6 +44,7 @@ message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 set(CFE_CORE_SOURCES
     ./src/bmi_cfe.c
+    ./src/cfe_serialize.c
     ./src/cfe.c
     ./src/giuh.c
     ./src/conceptual_reservoir.c
@@ -108,7 +109,9 @@ add_test(NAME combined_bmi_funcs_test_1 COMMAND combined_bmi_funcs_test ${PROJEC
 add_executable(test_bmi_model ./test/test_bmi_model.c test/bmi_test_utils.c test/bmi_test_utils.c test/general_test_utils.c)
 target_include_directories(test_bmi_model PUBLIC ${PROJECT_SOURCE_DIR}/include test/include)
 target_link_libraries(test_bmi_model cfebmi)
-target_compile_definitions(test_bmi_model PUBLIC BMI_INIT_CONFIG_EX_1="${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.cf3")
+target_compile_definitions(test_bmi_model PUBLIC
+    BMI_INIT_CONFIG_EX_1="${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.cf3"
+    BMI_INIT_CONFIG_DSBM="${PROJECT_SOURCE_DIR}/configs/clean_config.cf3")
 
 # For the 'test_bmi_model' executable, the test example can be explicitly passed (although for now there is only 1)
 add_test(NAME test_initialize_1 COMMAND test_bmi_model test_initialize 1)
@@ -162,7 +165,23 @@ add_test(NAME test_get_grid_spacing_1 COMMAND test_bmi_model test_get_grid_spaci
 add_test(NAME test_get_grid_x_1 COMMAND test_bmi_model test_get_grid_x)
 add_test(NAME test_get_grid_y_1 COMMAND test_bmi_model test_get_grid_y)
 add_test(NAME test_get_grid_z_1 COMMAND test_bmi_model test_get_grid_z)
+add_test(NAME test_serialization_metadata_1 COMMAND test_bmi_model test_serialization_metadata)
+add_test(NAME test_serialization_round_trip_1 COMMAND test_bmi_model test_serialization_round_trip)
+add_test(NAME test_serialization_round_trip_dsbm_1 COMMAND test_bmi_model test_serialization_round_trip_dsbm)
 # End test_bmi_model tests
+####################################################################################################################
+
+####################################################################################################################
+# Serialization unit tests (test the serialize/deserialize layer directly, not through BMI)
+add_executable(test_serialization ./test/test_serialization.c)
+target_include_directories(test_serialization PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(test_serialization cfebmi)
+target_compile_definitions(test_serialization PUBLIC
+    TEST_SERIALIZATION_CONFIG="${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.cf3")
+
+add_test(NAME test_serialize_create_1 COMMAND test_serialization test_serialize_create)
+add_test(NAME test_deserialize_failures_1 COMMAND test_serialization test_deserialize_failures)
+# End test_serialization tests
 ####################################################################################################################
 
 ####################################################################################################################

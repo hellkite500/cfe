@@ -56,6 +56,11 @@ int cfe_context_create_from_config(const char* cfg_path, CFE_Model_Context** out
 void cfe_context_destroy(CFE_Model_Context* ctx)
 {
     if (ctx == NULL) return;
+    if (ctx->serialized_state != NULL) {
+        free(ctx->serialized_state);
+        ctx->serialized_state = NULL;
+        ctx->serialized_size = 0;
+    }
     cfe_finalize(&ctx->state);
     free(ctx);
 }
