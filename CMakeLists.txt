@@ -84,12 +84,10 @@ target_include_directories(cfe_bmi_driver PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(cfe_bmi_driver cfebmi)
 
 ####################################################################################################################
-# Standalone (non-BMI) driver executable — opt-in via -DSTANDALONE=ON
-if (STANDALONE)
-    add_executable(cfe_main_driver ./src/cfe_main_driver.c)
-    target_include_directories(cfe_main_driver PRIVATE ${PROJECT_SOURCE_DIR}/include)
-    target_link_libraries(cfe_main_driver cfebmi)
-endif ()
+# Standalone (non-BMI) driver executable — always built (used by restart integration tests)
+add_executable(cfe_main_driver ./src/cfe_main_driver.c)
+target_include_directories(cfe_main_driver PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(cfe_main_driver cfebmi)
 
 ####################################################################################################################
 # Testing
@@ -191,6 +189,19 @@ add_test(NAME integration_v3_dsbm
         1e-10
 )
 set_tests_properties(integration_v3_dsbm PROPERTIES LABELS "integration")
+
+# Restart test: split forcing, run two halves via hotstart, compare to continuous run
+set(RESTART_TEST_SCRIPT ${PROJECT_SOURCE_DIR}/test/run_restart_test.sh)
+
+add_test(NAME restart_standalone_v3
+    COMMAND bash ${RESTART_TEST_SCRIPT}
+        $<TARGET_FILE:cfe_main_driver>
+        ${PROJECT_SOURCE_DIR}/configs/clean_config.cf3
+        ${FORCING_FILE}
+        360
+        1e-10
+)
+set_tests_properties(restart_standalone_v3 PROPERTIES LABELS "integration")
 # End integration tests
 ####################################################################################################################
 
