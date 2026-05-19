@@ -33,8 +33,8 @@
 /* ================================================================== */
 
 /* --- inputs (model forcing only) ---
- * verbosity and forcing_file_path are still accessible via set_value/
- * get_value/get_value_ptr but are not advertised as BMI input variables.
+ * verbosity is accessible via set_value/get_value/get_value_ptr but is
+ * not advertised as a BMI input variable.
  * The CSDMS BMI standard has no "string" type, and ngen rejects non-numeric inputs. */
 static const char* input_var_names[] = {
     "rainfall_depth_m",
@@ -242,10 +242,6 @@ static int Get_var_type(Bmi *self, const char *name, char *type) {
         strcpy(type, "int");
         return BMI_SUCCESS;
     }
-    if (strcmp(name, "forcing_file_path") == 0) {
-        strcpy(type, "string");
-        return BMI_SUCCESS;
-    }
     /* Check output and input variable names (all double) */
     for (int i = 0; i < OUTPUT_VAR_NAME_COUNT; i++)
         if (strcmp(name, output_var_names[i]) == 0) { strcpy(type, "double"); return BMI_SUCCESS; }
@@ -290,8 +286,7 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
     }
     else if (strcmp(name, "verbosity") == 0 ||
              strcmp(name, "state_current_timestep") == 0 ||
-             strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
-             strcmp(name, "forcing_file_path") == 0) {
+             strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
         strcpy(units, "1");
     }
     /* --- calibration parameter units (internal representation) --- */
@@ -333,9 +328,6 @@ static int Get_var_itemsize(Bmi *self, const char *name, int *size) {
         strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
         *size = sizeof(int);
     }
-    else if (strcmp(name, "forcing_file_path") == 0) {
-        *size = sizeof(char);
-    }
     else {
         /* all remaining recognized variables (outputs, inputs, params) are double */
         char type[BMI_MAX_TYPE_NAME];
@@ -351,9 +343,6 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
         strcmp(name, "state_current_timestep") == 0 ||
         strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
         *nbytes = sizeof(int);
-    }
-    else if (strcmp(name, "forcing_file_path") == 0) {
-        *nbytes = PATH_FILENAME_STRING_LENGTH;
     }
     else if (strcmp(name, "state_soil_moisture_theta") == 0) {
         *nbytes = NDISC * sizeof(double);
@@ -457,12 +446,6 @@ static int Get_value(Bmi *self, const char *name, void *dest) {
             d[i] = CONTEXT(self)->state.giuh_queue_m[i];
         return BMI_SUCCESS;
     }
-    if (strcmp(name, "forcing_file_path") == 0) {
-        strncpy((char*)dest, CONTEXT(self)->options.input_forcing_filename,
-                PATH_FILENAME_STRING_LENGTH);
-        return BMI_SUCCESS;
-    }
-
     /* All other variables: delegate through get_value_ptr */
     void *ptr = NULL;
     if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)
@@ -515,8 +498,6 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "rainfall_depth_m") == 0)  { *dest = &ctx->forcing.rainfall_depth_m;          return BMI_SUCCESS; }
     if (strcmp(name, "et_potential_m") == 0)    { *dest = &ctx->forcing.et_potential_m;             return BMI_SUCCESS; }
     if (strcmp(name, "verbosity") == 0)         { *dest = &ctx->options.verbosity;                  return BMI_SUCCESS; }
-    if (strcmp(name, "forcing_file_path") == 0) { *dest = ctx->options.input_forcing_filename;      return BMI_SUCCESS; }
-
     /* --- calibration parameters --- */
     double *pp = param_field_ptr(ctx, name);
     if(pp != NULL) { 
@@ -566,14 +547,6 @@ static int Set_value(Bmi *self, const char *name, void *src) {
             CONTEXT(self)->state.giuh_queue_m[i] = s[i];
         return BMI_SUCCESS;
     }
-    if (strcmp(name, "forcing_file_path") == 0) {
-        strncpy(CONTEXT(self)->options.input_forcing_filename, (char*)src,
-                sizeof(CONTEXT(self)->options.input_forcing_filename) - 1);
-        CONTEXT(self)->options.input_forcing_filename[
-            sizeof(CONTEXT(self)->options.input_forcing_filename) - 1] = '\0';
-        return BMI_SUCCESS;
-    }
-
     /* All other variables: delegate through get_value_ptr */
     void *ptr = NULL;
     if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)
