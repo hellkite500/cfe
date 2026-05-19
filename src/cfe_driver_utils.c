@@ -1077,9 +1077,11 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     fprintf(hotstart_fptr, "control_total_num_simulation_timesteps=%d[]\n", cfg->total_timesteps);
     fprintf(hotstart_fptr, "control_verbosity=%d[]\n", cfg->verbosity);
     fprintf(hotstart_fptr, "control_ET_simulate_Priestley_Taylor=%.3f[]\n", cfg->et_alpha_pt);
-    fprintf(hotstart_fptr, "control_soil_simulate_discrete_soil_moisture_true_false=%s\n", 
+    fprintf(hotstart_fptr, "control_soil_simulate_discrete_soil_moisture_true_false=%s\n",
             cfg->control_soil_simulate_discrete_soil_moisture_true_false ? "TRUE" : "FALSE");
-    fprintf(hotstart_fptr, "control_soil_use_lookup_table_num_points=%d\n", 
+    fprintf(hotstart_fptr, "control_ET_deepest_root_zone_discretization=%d\n",
+            cfg->control_ET_deepest_root_zone_discretization);
+    fprintf(hotstart_fptr, "control_soil_use_lookup_table_num_points=%d\n",
             cfg->control_soil_use_lookup_table_num_points);
     fprintf(hotstart_fptr, "\n");
 
@@ -1129,11 +1131,11 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
         fprintf(hotstart_fptr, "state_soil_reservoir_init_discrete_storage_theta=");
         for (int i = 0; i < NDISC; i++) {
             if (i > 0) fprintf(hotstart_fptr, ", ");
-            fprintf(hotstart_fptr, "%.12e", state->soil_discrete_storage_theta[i]);
+            fprintf(hotstart_fptr, "%.17e", state->soil_discrete_storage_theta[i]);
         }
         fprintf(hotstart_fptr, " []\n");
     } else {
-        fprintf(hotstart_fptr, "state_soil_reservoir_init_storage_m=%.12e[m]\n", state->soil_storage_m);
+        fprintf(hotstart_fptr, "state_soil_reservoir_init_storage_m=%.17e[m]\n", state->soil_storage_m);
     }
     fprintf(hotstart_fptr, "\n");
 
@@ -1144,7 +1146,7 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     fprintf(hotstart_fptr, "gw_discharge_coeff_m_per_timestep=%e[m h-1]\n", cfg->gw_discharge_coeff_m_per_timestep);
     fprintf(hotstart_fptr, "gw_discharge_exponent=%.4f[]\n", cfg->gw_discharge_exponent);
     fprintf(hotstart_fptr, "#----- Initial groundwater storage (UPDATED FROM MODEL STATE)\n");  
-    fprintf(hotstart_fptr, "state_gw_reservoir_init_storage_m=%.12e[m]\n", state->gw_storage_m);
+    fprintf(hotstart_fptr, "state_gw_reservoir_init_storage_m=%.17e[m]\n", state->gw_storage_m);
     fprintf(hotstart_fptr, "\n");
 
     // Partitioning scheme
@@ -1170,26 +1172,23 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     }
     fprintf(hotstart_fptr, "\n");
 
-    // Surface Routing Parameters (UPDATED FROM MODEL STATE)
-    fprintf(hotstart_fptr, "# Surface Routing Parameters\n");
+    // Surface Routing Parameters — GIUH only (UPDATED FROM MODEL STATE)
+    fprintf(hotstart_fptr, "# Surface Routing Parameters (GIUH)\n");
     fprintf(hotstart_fptr, "#===========================\n");
-    
-    if (string_compare_ignore_case(cfg->surface_routing_scheme_name, "giuh") == 0) {
-        fprintf(hotstart_fptr, "surface_routing_num_giuh_ordinates=%d\n", cfg->surface_routing_num_giuh_ordinates);
-        fprintf(hotstart_fptr, "surface_routing_giuh_ordinates=");
-        for (int i = 0; i < cfg->surface_routing_num_giuh_ordinates; i++) {
-            if (i > 0) fprintf(hotstart_fptr, ", ");
-            fprintf(hotstart_fptr, "%.6f", cfg->surface_routing_giuh_ordinates[i]);
-        }
-        fprintf(hotstart_fptr, " [m m-1]\n");
-        fprintf(hotstart_fptr, "#----- Initial GIUH convolution queue storage (UPDATED FROM MODEL STATE)\n");
-        fprintf(hotstart_fptr, "state_surface_routing_init_giuh_convolution_queue_m=");
-        for (int i = 0; i < cfg->surface_routing_num_giuh_ordinates; i++) {
-            if (i > 0) fprintf(hotstart_fptr, ", ");
-            fprintf(hotstart_fptr, "%.12e", state->giuh_queue_m[i]);
-        }
-        fprintf(hotstart_fptr, "[m]\n");
-      }
+    fprintf(hotstart_fptr, "surface_routing_num_giuh_ordinates=%d\n", cfg->surface_routing_num_giuh_ordinates);
+    fprintf(hotstart_fptr, "surface_routing_giuh_ordinates=");
+    for (int i = 0; i < cfg->surface_routing_num_giuh_ordinates; i++) {
+        if (i > 0) fprintf(hotstart_fptr, ", ");
+        fprintf(hotstart_fptr, "%.6f", cfg->surface_routing_giuh_ordinates[i]);
+    }
+    fprintf(hotstart_fptr, " [m m-1]\n");
+    fprintf(hotstart_fptr, "#----- Initial GIUH convolution queue storage (UPDATED FROM MODEL STATE)\n");
+    fprintf(hotstart_fptr, "state_surface_routing_init_giuh_convolution_queue_m=");
+    for (int i = 0; i < cfg->surface_routing_num_giuh_ordinates; i++) {
+        if (i > 0) fprintf(hotstart_fptr, ", ");
+        fprintf(hotstart_fptr, "%.17e", state->giuh_queue_m[i]);
+    }
+    fprintf(hotstart_fptr, "[m]\n");
     fprintf(hotstart_fptr, "\n");
 
     // Subsurface Lateral Flow Parameters (UPDATED FROM MODEL STATE)
@@ -1200,7 +1199,7 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     fprintf(hotstart_fptr, "state_subsurface_routing_init_nash_cascade_storage_m=");
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
         if (i > 0) fprintf(hotstart_fptr, ",");
-        fprintf(hotstart_fptr, "%.12e", state->nash_subsurface_storage_m[i]);
+        fprintf(hotstart_fptr, "%.17e", state->nash_subsurface_storage_m[i]);
     }
     fprintf(hotstart_fptr, "[m]\n");
     fprintf(hotstart_fptr, "\n");
