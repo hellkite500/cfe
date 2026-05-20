@@ -27,7 +27,7 @@
 #include "cfe_context.h"               // context create/update/destroy + setters/getters
 #include "cfe_types.h"                 // All data types used in cfe model, outputs, etc.
 #include "cfe.h"                       // includes volbal structure definition
-#include "cfe_main_driver.h"           // I/O and print function headers that only main driver uses
+#include "cfe_driver_utils.h"
 #include "cfe_pet_priestley_taylor.h" // Needed for testing purposes if PET is not provided
 
 #define TIME_STRING_LENGTH 64
