@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
             }
         } else {
             // Config time step is set - enforce consistency
-            if (fabs(options.time_step_seconds - forcing_time.delta_t_seconds) > 1.0e-3) {
+            if (options.time_step_seconds != forcing_time.delta_t_seconds) {
                 fprintf(stderr, "ERROR: Time step mismatch between config (%d s) and forcing file (%d s)\n",
                         options.time_step_seconds, forcing_time.delta_t_seconds);
                 fprintf(stderr, "CFE cannot interpolate forcings data. Forcing data and model time steps must be the same.\n");
@@ -270,7 +270,7 @@ int main(int argc, char* argv[])
 
 
     // 14. Write hotstart config file iff needed
-    if (config.output_new_config_filename != NULL && strlen(config.output_new_config_filename) > 0) {
+    if (strlen(config.output_new_config_filename) > 0) {
         int result = write_hotstart_config(&config, &state, &forcing_time);
         if (result != 0) {
             fprintf(stderr, "WARNING: failed to write hotstart config file.  Reason: UNKNOWN.\n");
