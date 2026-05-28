@@ -16,7 +16,7 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 - Priestley-Taylor PET estimation from AORC radiation data (testing only).
   Activated via `control_ET_simulate_Priestley_Taylor=<alpha>`.
 - New v3.0 config format (`.cf3`) with keyword=arg(s) [units] and comments.
-  Full backward compatibility with legacy v2 format (`.cf2` / `.txt`).
+  Legacy v2 configs must be converted using `cfe_migrate_config`.
 
 #### BMI
 - `CONTEXT(self)` macro pattern: model state (`CFE_Model_Context`) stored in
@@ -28,9 +28,10 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 - Per-timestep volume balance outputs: `timestep_storage_start_m`,
   `timestep_input_m`, `timestep_output_m`, `timestep_storage_end_m`.
 - `vol_balance_residual_m` output: cached volstart + volin - volout - volend.
-- 18 calibration parameters via `get_value`, `set_value`, and `get_value_ptr`,
-  with v2 legacy name aliases for backward compatibility with ngen calibration
-  configs (e.g. `maxsmc` resolves to the same field as `soil_effective_porosity`).
+- 16 calibration parameters via `get_value`, `set_value`, and `get_value_ptr`.
+  BMI uses internal SI units (m/s, m); config files use human-readable units
+  (cm/h, cm) — conversion is automatic at parse time. See README.md for the
+  full mapping table.
 - ngen mass balance protocol: `ngen::mass_in`, `ngen::mass_out`,
   `ngen::mass_stored`, `ngen::mass_leaked` via `get_value_ptr`.
 - `STANDALONE` CMake option to build `cfe_main_driver` (non-BMI executable).
@@ -47,9 +48,6 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 - Nash Cascade surface routing removed — GIUH is the only surface routing
   option. Retention depth, runon infiltration, and `et_from_retention_depth()`
   removed. These features did not produce added model skill (FLO, 5/26).
-- Legacy v2 configs with `surface_runoff_scheme=NASH_CASCADE` are accepted
-  with a deprecation warning; GIUH is used with a default unit impulse if
-  no GIUH ordinates are specified.
 
 ### Changed
 
@@ -74,10 +72,11 @@ Input variables (v2 → v3):
 | `atmosphere_water__liquid_equivalent_precipitation_rate` | `rainfall_depth_m` (m/timestep) |
 | `water_potential_evaporation_flux` | `et_potential_m` (m/timestep) |
 
-Calibration parameters (v2 alias → v3 canonical name):
+Calibration parameters (v2 alias → v3 canonical name). v2 aliases are no
+longer accepted — use the v3 name only:
 
-| v2 | v3 | Units |
-|----|-----|-------|
+| v2 (removed) | v3 | BMI Unit |
+|----|----|------|
 | `maxsmc` | `soil_effective_porosity` | - |
 | `satdk` | `soil_saturated_hydraulic_conductivity` | m s-1 |
 | `slope` | `soil_percolation_rate_limiter` | - |
@@ -88,13 +87,15 @@ Calibration parameters (v2 alias → v3 canonical name):
 | `expon` | `gw_discharge_exponent` | - |
 | `max_gw_storage` | `gw_max_storage_m` | m |
 | `satpsi` | `soil_saturated_capillary_head` | m |
-| `wltsmc` | `soil_wilting_point` | - |
 | `alpha_fc` | `soil_field_capacity_fraction` | - |
 | `a_Xinanjiang_inflection_point_parameter` | `Xinanjiang_inflection_a` | - |
 | `b_Xinanjiang_shape_parameter` | `Xinanjiang_shape_b` | - |
 | `x_Xinanjiang_shape_parameter` | `Xinanjiang_shape_x` | - |
 | — | `Priestley_Taylor_alpha` | - |
 | — | `soil_ice_imperv_threshold` | - |
+
+Removed from calibration parameters: `refkdt` (constant = 3.0),
+`soil_wilting_point` (auto-calculated from Clapp-Hornberger).
 
 #### Build System
 - CMake project version bumped to 3.0.0.
@@ -129,8 +130,6 @@ Calibration parameters (v2 alias → v3 canonical name):
 
 - `conceptual_reservoir_flux_calc` now uses epsilon guards to avoid
   floating-point edge cases near storage thresholds.
-- Legacy config parser accepts v2-only keys (`soil_params.expon`,
-  `soil_params.expon_secondary`, `nsubsteps_nash_surface`) without error.
 - Double-baseflow drawdown of groundwater reservoir: GW storage was being
   decremented by the baseflow flux twice per timestep, causing 2× drawdown
   and a per-step volume balance residual equal to one baseflow value.

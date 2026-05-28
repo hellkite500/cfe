@@ -154,15 +154,16 @@ The realization config should reference the shared library and a v3 config:
 
 ### BMI Variable Names
 
-**Inputs:** `rainfall_depth_m`, `et_potential_m`
+**Inputs:** `rainfall_depth_m` (m/timestep), `et_potential_m` (m/timestep)
 
 **Key outputs:** `discharge_m`, `surface_runoff_m`, `lateral_flow_m`,
-`baseflow_m`, `actual_et_m`
+`baseflow_m`, `actual_et_m` (all m/timestep)
 
 **Calibration parameters** (16 total, accessible via `set_value` / `get_value_ptr`):
-`soil_effective_porosity`, `soil_saturated_hydraulic_conductivity`,
-`soil_Clapp_Hornberger_b`, `gw_discharge_coefficient`, `gw_discharge_exponent`,
-`gw_max_storage_m`, etc. See `bmi_cfe.c` `param_var_names[]` for the full list.
+BMI parameter names use internal SI units (m/s for conductivity, m for head).
+Config files use human-readable units (cm/h, cm) — the conversion is automatic.
+See [README.md](README.md#calibration-parameters) for the full config-to-BMI
+mapping table, or `bmi_cfe.c` `param_var_names[]` for the authoritative list.
 
 Note: `refkdt` is a constant (=3.0, per Schaake et al. 1996) and is not
 calibratable. `soil_wilting_point` is auto-calculated from Clapp-Hornberger
