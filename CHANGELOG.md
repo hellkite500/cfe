@@ -21,10 +21,10 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 #### BMI
 - `CONTEXT(self)` macro pattern: model state (`CFE_Model_Context`) stored in
   `Bmi.data`, accessed cleanly throughout bmi_cfe.c.
-- 21 output variables (was 15), 4 input variables (was 5) — see tables below.
+- 20 output variables (was 15), 2 input variables (was 5) — see tables below.
 - Array state variables on dedicated grids: `state_soil_moisture_theta` (grid 1,
-  NDISC), `state_nash_surface_storage` (grid 2), `state_nash_subsurface_storage`
-  (grid 3), `state_giuh_queue` (grid 4).
+  NDISC), `state_nash_subsurface_storage` (grid 2, 2 elements),
+  `state_giuh_queue` (grid 3, num_giuh elements).
 - Per-timestep volume balance outputs: `timestep_storage_start_m`,
   `timestep_input_m`, `timestep_output_m`, `timestep_storage_end_m`.
 - `vol_balance_residual_m` output: cached volstart + volin - volout - volend.
@@ -35,8 +35,8 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 - ngen mass balance protocol: `ngen::mass_in`, `ngen::mass_out`,
   `ngen::mass_stored`, `ngen::mass_leaked` via `get_value_ptr`.
 - `STANDALONE` CMake option to build `cfe_main_driver` (non-BMI executable).
-- 2 CTest integration tests with golden output comparison at 1e-10 tolerance
-  (v2 legacy config + v3 DSBM config).
+- CTest integration tests with golden output comparison at 1e-10 tolerance
+  and hotstart restart validation.
 
 #### Core Model Improvements
 - Conceptual reservoir rewritten with epsilon-based comparisons, linear

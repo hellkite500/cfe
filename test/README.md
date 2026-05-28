@@ -4,24 +4,28 @@ Tests are configured for use with CTest directly within CMakeLists.txt.
 
 ## Test Categories
 
-### BMI Unit Tests (44 tests)
+### BMI Unit Tests (50 tests)
 
-- **combined_bmi_funcs_test**: Legacy batch test exercising all BMI functions
-  in a single routine, including a 20-parameter calibration round-trip
+- **combined_bmi_funcs_test**: Batch test exercising all BMI functions
+  in a single routine, including a 16-parameter calibration round-trip
   (`set_value` → `get_value` → `get_value_ptr` for each parameter).
 - **test_bmi_model**: Individual unit tests for each BMI function, invoked
   by name (e.g. `test_bmi_model test_initialize`).
 - **test_mass_balance_protocol**: Validates the ngen mass balance protocol
   identity (`mass_in = mass_out + mass_stored + mass_leaked`) by running
   10 timesteps with known forcing and checking closure to machine epsilon.
+- **test_serialization**: Tests the BMI serialization protocol for state
+  checkpoint/restore.
 
-### Integration Tests (2 tests)
+### Integration Tests (3 tests)
 
-- **integration_v2_legacy**: Runs `cfe_bmi_driver` with the legacy v2 config
-  (`legacy_cfe_config_cat87.cf2`) and compares discharge, fluxes, and storage
-  against golden reference outputs at 1e-10 tolerance.
+- **integration_v2_migrated**: Runs `cfe_bmi_driver` with the migrated v2
+  config (`migrated_legacy_cat87.cf3`) and compares discharge, fluxes, and
+  storage against golden reference outputs at 1e-10 tolerance.
 - **integration_v3_dsbm**: Same, with the v3 DSBM config
   (`bmi_config_cat87_v3.cf3`), including soil moisture theta comparison.
+- **restart_standalone_v3**: Hotstart restart test — runs a simulation,
+  writes a hotstart config, restarts from it, and verifies output continuity.
 
 Golden reference outputs are in `test/golden/v2/` and `test/golden/v3/`.
 
@@ -51,8 +55,8 @@ ctest --test-dir build -R test_mass_balance_protocol
 ## Test Code Organization
 
 ### combined_bmi_funcs_test.c
-Legacy batch test. Exercises all BMI functions in sequence, including
-calibration parameter set/get/ptr round-trip for all 20 parameters.
+Batch test. Exercises all BMI functions in sequence, including
+calibration parameter set/get/ptr round-trip for all 16 parameters.
 
 ### test_bmi_model.c
 Individual BMI function unit tests. The `main` function dispatches to

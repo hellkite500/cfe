@@ -28,7 +28,7 @@ For the conceptual basis and hypotheses underpinning CFE, see
 ```bash
 cmake -B build -S .
 cmake --build build
-ctest --test-dir build       # 46 tests: 44 unit + 2 integration
+ctest --test-dir build
 ```
 
 See [INSTALL.md](INSTALL.md) for detailed build options, driver usage, and
