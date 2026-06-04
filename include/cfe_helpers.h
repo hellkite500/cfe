@@ -96,6 +96,12 @@ void check_dsbm_local_volume_balance(
 /* Output writing helper functions */
 const char* get_delimiter_string(const char* delimiter_name);
 
+/* Resync derived quantities and cached copies after calibration parameter changes.
+ * Call once before the first update after any set_value on a calibration parameter. */
+int cfe_resync_derived_params(cfe_parameters_struct* params,
+                              const cfe_options_struct* opts,
+                              cfe_state_struct* state);
+
 /* Cleanup any allocations made in state */
 int cfe_finalize(cfe_state_struct* s);
 

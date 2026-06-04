@@ -617,6 +617,11 @@ static int Set_value(Bmi *self, const char *name, void *src) {
         return BMI_FAILURE;
 
     memcpy(ptr, src, nbytes);
+
+    /* Mark dirty if this was a calibration parameter */
+    if (param_field_ptr(CONTEXT(self), name) != NULL)
+        CONTEXT(self)->params_dirty = 1;
+
     return BMI_SUCCESS;
 }
 

@@ -403,6 +403,8 @@ typedef struct {
     double timestep_output_m;
     double timestep_storage_end_m;
     double vol_balance_residual_m;  /* cached: volstart + volin - volout - volend */
+    /* Dirty flag: set by BMI set_value on calibration params, cleared after resync */
+    int params_dirty;
     /* Serialization protocol buffer (ngen::serialization_*) */
     char  *serialized_state;
     size_t serialized_size;

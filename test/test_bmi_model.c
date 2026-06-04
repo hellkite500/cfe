@@ -2033,6 +2033,378 @@ int test_serialization_round_trip_dsbm(TestFixture* fixture)
     return TEST_RETURN_CODE_PASS;
 }
 
+/*
+ * test_derived_quantities_resync
+ *
+ * Verify that derived quantities (schaake_magic_constant,
+ * field_capacity_moisture_content, field_capacity_storage_m) are
+ * recomputed when their base calibration parameters change via
+ * set_value. The discharge-level tests can miss this because some
+ * parameters also have direct effects that mask stale derived values.
+ *
+ * This test reads the derived fields directly from the context struct
+ * via Bmi.data — it's a white-box test by design.
+ */
+int test_derived_quantities_resync(TestFixture* fixture)
+{
+    Bmi m_storage, *m = &m_storage;
+    register_bmi_cfe(m);
+
+    if (m->initialize(m, fixture->cfg_file) != BMI_SUCCESS) {
+        printf("\nFailed to initialize");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    CFE_Model_Context *ctx = (CFE_Model_Context *)m->data;
+    cfe_parameters_struct *p = &ctx->parameters;
+
+    double orig_schaake    = p->schaake_magic_constant;
+    double orig_fc_theta   = p->field_capacity_moisture_content;
+    double orig_fc_storage = p->field_capacity_storage_m;
+
+    /* Perturb ksat by 100x — schaake_magic_constant must change proportionally */
+    double new_ksat = p->ksat_m_per_s * 100.0;
+    m->set_value(m, "soil_saturated_hydraulic_conductivity", &new_ksat);
+
+    /* Perturb soil_b (4.05 → 12.0) — field_capacity must change */
+    double new_b = 12.0;
+    m->set_value(m, "soil_Clapp_Hornberger_b", &new_b);
+
+    /* Run one step to trigger any resync logic */
+    double rain = 0.005, pet = 0.0;
+    m->set_value(m, "rainfall_depth_m", &rain);
+    m->set_value(m, "et_potential_m", &pet);
+    m->update(m);
+
+    int failed = 0;
+
+    /* schaake_magic_constant = refkdt * ksat / 2e-6 */
+    double expected_schaake = p->refkdt * new_ksat / 2.0e-06;
+    /* Relative tolerance: schaake magnitude varies with Ksat, so scale epsilon to the expected value */
+    if (fabs(p->schaake_magic_constant - expected_schaake) > 1.0e-10 * fabs(expected_schaake)) {
+        printf("\n  FAIL: schaake_magic_constant stale: got %.6e, expected %.6e (orig %.6e)",
+               p->schaake_magic_constant, expected_schaake, orig_schaake);
+        failed++;
+    } else {
+        printf("\n  OK: schaake_magic_constant recomputed (%.6e → %.6e)", orig_schaake, p->schaake_magic_constant);
+    }
+
+    /* field_capacity_moisture_content must differ from original after soil_b change */
+    if (fabs(p->field_capacity_moisture_content - orig_fc_theta) < 1.0e-15) {
+        printf("\n  FAIL: field_capacity_moisture_content unchanged (%.6e)", orig_fc_theta);
+        failed++;
+    } else {
+        printf("\n  OK: field_capacity_moisture_content recomputed (%.6e → %.6e)",
+               orig_fc_theta, p->field_capacity_moisture_content);
+    }
+
+    /* field_capacity_storage_m must differ too */
+    if (fabs(p->field_capacity_storage_m - orig_fc_storage) < 1.0e-15) {
+        printf("\n  FAIL: field_capacity_storage_m unchanged (%.6e)", orig_fc_storage);
+        failed++;
+    } else {
+        printf("\n  OK: field_capacity_storage_m recomputed (%.6e → %.6e)",
+               orig_fc_storage, p->field_capacity_storage_m);
+    }
+
+    /* Verify field_capacity_storage_m = fc_theta * soil_depth_m */
+    double expected_fc_storage = p->field_capacity_moisture_content * p->soil_depth_m;
+    if (fabs(p->field_capacity_storage_m - expected_fc_storage) > 1.0e-15) {
+        printf("\n  FAIL: field_capacity_storage_m (%.6e) != fc_theta * depth (%.6e)",
+               p->field_capacity_storage_m, expected_fc_storage);
+        failed++;
+    }
+
+    m->finalize(m);
+    if (failed > 0) return TEST_RETURN_CODE_FAIL;
+    printf("\n  All derived quantities resynced correctly");
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
+ * test_dsbm_soil_params_resync
+ *
+ * Verify that s->soil_parameters (the DSBM cached copy) is refreshed
+ * when calibration parameters change via set_value. Uses the DSBM
+ * config and reads the state struct directly.
+ */
+int test_dsbm_soil_params_resync(TestFixture* fixture)
+{
+    (void)fixture;
+    Bmi m_storage, *m = &m_storage;
+    register_bmi_cfe(m);
+
+    if (m->initialize(m, BMI_INIT_CONFIG_DSBM) != BMI_SUCCESS) {
+        printf("\nFailed to initialize DSBM config");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    CFE_Model_Context *ctx = (CFE_Model_Context *)m->data;
+    cfe_parameters_struct *p = &ctx->parameters;
+    SoilParameters *sp = &ctx->state.soil_parameters;
+
+    /* Record originals */
+    double orig_Ksat_cm_h = sp->K_sat_cm_per_h;
+    double orig_b_exp     = sp->b_exp;
+    double orig_phi_cm    = sp->phi_sat_cm;
+    double orig_perc      = sp->perc_limiter_0_to_1;
+    double orig_klf       = sp->klf_per_h;
+    double orig_theta_sat = sp->theta_sat;
+
+    /* Perturb base parameters via BMI */
+    double new_ksat = p->ksat_m_per_s * 100.0;
+    m->set_value(m, "soil_saturated_hydraulic_conductivity", &new_ksat);
+    double new_b = 12.0;
+    m->set_value(m, "soil_Clapp_Hornberger_b", &new_b);
+    double new_phi = 1.0;  /* m (was 0.355) */
+    m->set_value(m, "soil_saturated_capillary_head", &new_phi);
+    double new_perc = 0.90;
+    m->set_value(m, "soil_percolation_rate_limiter", &new_perc);
+    double new_klf = 0.50;
+    m->set_value(m, "soil_lateral_flow_K", &new_klf);
+    double new_porosity = 0.30;
+    m->set_value(m, "soil_effective_porosity", &new_porosity);
+
+    /* Run one step to trigger resync */
+    double rain = 0.005, pet = 0.0;
+    m->set_value(m, "rainfall_depth_m", &rain);
+    m->set_value(m, "et_potential_m", &pet);
+    m->update(m);
+
+    int failed = 0;
+
+    /* Check each s->soil_parameters field was updated */
+    double exp_Ksat_cm_h = new_ksat * 360000.0;
+    if (fabs(sp->K_sat_cm_per_h - exp_Ksat_cm_h) > 1.0e-6) {
+        printf("\n  FAIL: soil_parameters.K_sat_cm_per_h stale: %.6e (expected %.6e, orig %.6e)",
+               sp->K_sat_cm_per_h, exp_Ksat_cm_h, orig_Ksat_cm_h);
+        failed++;
+    } else {
+        printf("\n  OK: K_sat_cm_per_h resynced (%.4e → %.4e)", orig_Ksat_cm_h, sp->K_sat_cm_per_h);
+    }
+
+    if (fabs(sp->b_exp - new_b) > 1.0e-15) {
+        printf("\n  FAIL: soil_parameters.b_exp stale: %.6f (expected %.6f, orig %.6f)",
+               sp->b_exp, new_b, orig_b_exp);
+        failed++;
+    } else {
+        printf("\n  OK: b_exp resynced (%.2f → %.2f)", orig_b_exp, sp->b_exp);
+    }
+
+    double exp_phi_cm = new_phi * 100.0;
+    if (fabs(sp->phi_sat_cm - exp_phi_cm) > 1.0e-10) {
+        printf("\n  FAIL: soil_parameters.phi_sat_cm stale: %.4f (expected %.4f, orig %.4f)",
+               sp->phi_sat_cm, exp_phi_cm, orig_phi_cm);
+        failed++;
+    } else {
+        printf("\n  OK: phi_sat_cm resynced (%.2f → %.2f)", orig_phi_cm, sp->phi_sat_cm);
+    }
+
+    if (fabs(sp->perc_limiter_0_to_1 - new_perc) > 1.0e-15) {
+        printf("\n  FAIL: soil_parameters.perc_limiter stale: %.4f (expected %.4f, orig %.4f)",
+               sp->perc_limiter_0_to_1, new_perc, orig_perc);
+        failed++;
+    } else {
+        printf("\n  OK: perc_limiter resynced (%.4f → %.4f)", orig_perc, sp->perc_limiter_0_to_1);
+    }
+
+    if (fabs(sp->klf_per_h - new_klf) > 1.0e-15) {
+        printf("\n  FAIL: soil_parameters.klf_per_h stale: %.4f (expected %.4f, orig %.4f)",
+               sp->klf_per_h, new_klf, orig_klf);
+        failed++;
+    } else {
+        printf("\n  OK: klf_per_h resynced (%.4f → %.4f)", orig_klf, sp->klf_per_h);
+    }
+
+    if (fabs(sp->theta_sat - new_porosity) > 1.0e-15) {
+        printf("\n  FAIL: soil_parameters.theta_sat stale: %.4f (expected %.4f, orig %.4f)",
+               sp->theta_sat, new_porosity, orig_theta_sat);
+        failed++;
+    } else {
+        printf("\n  OK: theta_sat resynced (%.4f → %.4f)", orig_theta_sat, sp->theta_sat);
+    }
+
+    m->finalize(m);
+    if (failed > 0) {
+        printf("\n  %d DSBM soil_parameters fields not resynced", failed);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    printf("\n  All DSBM soil_parameters fields resynced correctly");
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
+ * test_calibration_params_affect_output
+ *
+ * For each calibration parameter: initialize, set to a perturbed value,
+ * run 5 timesteps with rainfall, and verify that cumulative discharge
+ * differs from an unperturbed baseline run. This catches the bug where
+ * set_value writes to the parameter struct but derived quantities or
+ * cached copies (s->soil_parameters, schaake_magic_constant,
+ * field_capacity_storage_m, lookup tables) are never refreshed.
+ */
+
+static double run_and_get_discharge(const char *cfg_file,
+                                    const char *param_name,
+                                    double param_value,
+                                    int do_set)
+{
+    Bmi m_storage, *m = &m_storage;
+    register_bmi_cfe(m);
+
+    if (m->initialize(m, cfg_file) != BMI_SUCCESS) return -1.0;
+
+    if (do_set) {
+        if (m->set_value(m, param_name, &param_value) != BMI_SUCCESS) {
+            m->finalize(m);
+            return -1.0;
+        }
+    }
+
+    double rain_m = 0.005;
+    double pet_m  = 0.0;
+    double cumulative_q = 0.0;
+
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain_m);
+        m->set_value(m, "et_potential_m", &pet_m);
+        if (m->update(m) != BMI_SUCCESS) { m->finalize(m); return -1.0; }
+
+        double q = 0.0;
+        m->get_value(m, "discharge_m", &q);
+        cumulative_q += q;
+    }
+
+    m->finalize(m);
+    return cumulative_q;
+}
+
+int test_calibration_params_affect_output(TestFixture* fixture)
+{
+    const char *cfg = fixture->cfg_file;
+
+    /* Each entry: BMI parameter name, perturbed value (must be physically
+       valid but far enough from the config default to change output).
+       Config defaults from cfe_config_cat_87_pass.cf3 noted in comments. */
+    static const struct { const char *name; double perturbed; } params[] = {
+        { "soil_effective_porosity",               0.20   },  /* default 0.439 */
+        { "soil_saturated_hydraulic_conductivity",  3.4e-4 },  /* default ~3.4e-6 m/s; 100x increase */
+        { "soil_percolation_rate_limiter",          0.90   },  /* default 0.01 */
+        { "soil_Clapp_Hornberger_b",               12.0   },  /* default 4.05 */
+        { "soil_lateral_flow_K",                    0.50   },  /* default 0.01 h-1 */
+        { "subsurface_nash_K",                      0.50   },  /* default 0.03 h-1 */
+        { "gw_discharge_coefficient",               1.8e-3 },  /* default 1.8e-5 */
+        { "gw_discharge_exponent",                  1.5    },  /* default 6.0 */
+        { "gw_max_storage_m",                       0.01   },  /* default 0.25 */
+        { "soil_saturated_capillary_head",          1.0    },  /* default 0.355 m */
+        { "soil_field_capacity_fraction",           0.10   },  /* default 0.333 */
+    };
+    int n_params = sizeof(params) / sizeof(params[0]);
+
+    double baseline = run_and_get_discharge(cfg, NULL, 0.0, 0);
+    if (baseline < 0.0) {
+        printf("\nFailed to run baseline");
+        return TEST_RETURN_CODE_FAIL;
+    }
+    if (baseline == 0.0) {
+        printf("\nBaseline discharge is zero — test is invalid");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    int failed = 0;
+    for (int i = 0; i < n_params; i++) {
+        double perturbed = run_and_get_discharge(cfg, params[i].name,
+                                                 params[i].perturbed, 1);
+        if (perturbed < 0.0) {
+            printf("\n  FAIL: run failed for '%s'", params[i].name);
+            failed++;
+            continue;
+        }
+        double rel_change = fabs(perturbed - baseline) / baseline;
+        if (rel_change < 1.0e-10) {
+            printf("\n  FAIL: '%s' had no effect on discharge "
+                   "(baseline=%.6e, perturbed=%.6e, rel_change=%.2e)",
+                   params[i].name, baseline, perturbed, rel_change);
+            failed++;
+        } else {
+            printf("\n  OK: '%s' rel_change=%.4e", params[i].name, rel_change);
+        }
+    }
+
+    if (failed > 0) {
+        printf("\n  %d of %d calibration parameters had no effect on output", failed, n_params);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    printf("\n  All %d calibration parameters affect discharge output", n_params);
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
+ * test_calibration_params_affect_output_dsbm
+ *
+ * Same as above but with the DSBM config. Tests the s->soil_parameters
+ * copy path and lookup table dependencies.
+ */
+int test_calibration_params_affect_output_dsbm(TestFixture* fixture)
+{
+    (void)fixture;
+    const char *cfg = BMI_INIT_CONFIG_DSBM;
+
+    static const struct { const char *name; double perturbed; } params[] = {
+        { "soil_effective_porosity",               0.20   },
+        { "soil_saturated_hydraulic_conductivity",  3.4e-4 },
+        { "soil_percolation_rate_limiter",          0.90   },
+        { "soil_Clapp_Hornberger_b",               12.0   },
+        { "soil_lateral_flow_K",                    0.50   },
+        { "subsurface_nash_K",                      0.50   },
+        { "gw_discharge_coefficient",               1.8e-3 },
+        { "gw_discharge_exponent",                  1.5    },
+        { "gw_max_storage_m",                       0.01   },
+        { "soil_saturated_capillary_head",          1.0    },
+        { "soil_field_capacity_fraction",           0.10   },
+    };
+    int n_params = sizeof(params) / sizeof(params[0]);
+
+    double baseline = run_and_get_discharge(cfg, NULL, 0.0, 0);
+    if (baseline < 0.0) {
+        printf("\nFailed to run DSBM baseline");
+        return TEST_RETURN_CODE_FAIL;
+    }
+    if (baseline == 0.0) {
+        printf("\nDSBM baseline discharge is zero — test is invalid");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    int failed = 0;
+    for (int i = 0; i < n_params; i++) {
+        double perturbed = run_and_get_discharge(cfg, params[i].name,
+                                                 params[i].perturbed, 1);
+        if (perturbed < 0.0) {
+            printf("\n  FAIL: DSBM run failed for '%s'", params[i].name);
+            failed++;
+            continue;
+        }
+        double rel_change = fabs(perturbed - baseline) / baseline;
+        if (rel_change < 1.0e-10) {
+            printf("\n  FAIL (DSBM): '%s' had no effect on discharge "
+                   "(baseline=%.6e, perturbed=%.6e, rel_change=%.2e)",
+                   params[i].name, baseline, perturbed, rel_change);
+            failed++;
+        } else {
+            printf("\n  OK (DSBM): '%s' rel_change=%.4e", params[i].name, rel_change);
+        }
+    }
+
+    if (failed > 0) {
+        printf("\n  %d of %d DSBM calibration parameters had no effect on output", failed, n_params);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    printf("\n  All %d DSBM calibration parameters affect discharge output", n_params);
+    return TEST_RETURN_CODE_PASS;
+}
+
 int main(int argc, const char* argv[])
 {
     char* config_file;
@@ -2153,6 +2525,14 @@ int main(int argc, const char* argv[])
         result = test_serialization_round_trip(fixture);
     else if (strcmp(argv[1], "test_serialization_round_trip_dsbm") == 0)
         result = test_serialization_round_trip_dsbm(fixture);
+    else if (strcmp(argv[1], "test_derived_quantities_resync") == 0)
+        result = test_derived_quantities_resync(fixture);
+    else if (strcmp(argv[1], "test_dsbm_soil_params_resync") == 0)
+        result = test_dsbm_soil_params_resync(fixture);
+    else if (strcmp(argv[1], "test_calibration_params_affect_output") == 0)
+        result = test_calibration_params_affect_output(fixture);
+    else if (strcmp(argv[1], "test_calibration_params_affect_output_dsbm") == 0)
+        result = test_calibration_params_affect_output_dsbm(fixture);
     else
         printf("\nUnexpected test function %s\n", argv[1]);
 

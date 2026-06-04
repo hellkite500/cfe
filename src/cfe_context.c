@@ -96,6 +96,11 @@ int cfe_context_update(CFE_Model_Context* ctx)
 {
     if (ctx == NULL) return -1;
 
+    if (ctx->params_dirty) {
+        cfe_resync_derived_params(&ctx->parameters, &ctx->options, &ctx->state);
+        ctx->params_dirty = 0;
+    }
+
     // Calculate storage at start of timestep
     ctx->timestep_storage_start_m = calculate_total_storage(ctx);
     

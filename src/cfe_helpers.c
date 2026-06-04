@@ -1151,6 +1151,53 @@ double cfe_get_last_qout_m(const cfe_outputs_struct* outputs) {
 
 
 //##############
+int cfe_resync_derived_params(cfe_parameters_struct* p,
+                              const cfe_options_struct* o,
+                              cfe_state_struct* s)
+{
+    if (p == NULL || o == NULL || s == NULL) return -1;
+
+    // Recompute Schaake magic constant (depends on ksat)
+    p->schaake_magic_constant = p->refkdt * p->ksat_m_per_s / 2.0e-06;
+
+    // Recompute field capacity moisture content (depends on porosity, b, capillary head, fc fraction)
+    double psi_atm_m = STANDARD_ATM_PRESS_Pa /
+                       (GRAVITATIONAL_ACCELERATION_EARTH_m_per_s2 * WATER_LIQUID_DENSITY_kg_per_m3);
+    double arg = (p->field_capacity_Pcap_over_Patm * psi_atm_m / p->sat_capillary_head_m);
+    p->field_capacity_moisture_content = p->effective_porosity * pow(arg, (-1.0 / p->soil_b));
+    p->field_capacity_storage_m = p->field_capacity_moisture_content * p->soil_depth_m;
+
+    // Resync DSBM soil_parameters copy
+    if (o->simulate_discrete_soil_moisture) {
+        s->soil_parameters.theta_sat           = p->effective_porosity;
+        s->soil_parameters.theta_fc            = p->field_capacity_moisture_content;
+        s->soil_parameters.theta_aet_eq_pet    = p->field_capacity_moisture_content;
+        s->soil_parameters.K_sat_cm_per_h      = p->ksat_m_per_s * 360000.0;
+        s->soil_parameters.phi_sat_cm          = p->sat_capillary_head_m * 100.0;
+        s->soil_parameters.b_exp               = p->soil_b;
+        s->soil_parameters.perc_limiter_0_to_1 = p->soil_to_gw_percolation_rate_limiter_0_1;
+        s->soil_parameters.klf_per_h           = p->soil_k_lateral_per_h;
+
+        // Rebuild Clapp-Hornberger lookup table if active
+        if (o->use_soil_lookup_table) {
+            soil_free_ch_lut(&s->ch_lookup_tables);
+            soil_build_ch_lut(
+                p->lut_n_points,
+                p->lut_theta_min,
+                0.0,
+                p->effective_porosity,
+                p->soil_b,
+                p->sat_capillary_head_m * 100.0,
+                p->ksat_m_per_s * 360000.0,
+                &s->ch_lookup_tables
+            );
+        }
+    }
+
+    return 0;
+}
+
+//##############
 int cfe_finalize(cfe_state_struct* s)
 {
     if (s && s->ch_lookup_tables.lnpsi != NULL) {
