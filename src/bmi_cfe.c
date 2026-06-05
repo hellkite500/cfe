@@ -110,7 +110,7 @@ static double* param_field_ptr(CFE_Model_Context *ctx, const char *name) {
     if (strcmp(name, "soil_Clapp_Hornberger_b") == 0)              return &p->soil_b;
     if (strcmp(name, "soil_lateral_flow_K") == 0)                   return &p->soil_k_lateral_per_h;
     if (strcmp(name, "subsurface_nash_K") == 0)                     return &p->nash_subsurface_K_per_h;
-    if (strcmp(name, "gw_discharge_coefficient") == 0)              return &p->gw_discharge_coeff_m_per_s;
+    if (strcmp(name, "gw_discharge_coefficient") == 0)              return &p->gw_discharge_coeff_m_per_timestep;
     if (strcmp(name, "gw_discharge_exponent") == 0)                 return &p->gw_discharge_exponent;
     if (strcmp(name, "gw_max_storage_m") == 0)                      return &p->gw_max_storage_m;
     if (strcmp(name, "soil_saturated_capillary_head") == 0)         return &p->sat_capillary_head_m;

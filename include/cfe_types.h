@@ -229,7 +229,7 @@ typedef struct {
     /* Groundwater */
     double gw_max_storage_m;
     double gw_init_storage_m;
-    double gw_discharge_coeff_m_per_s;
+    double gw_discharge_coeff_m_per_timestep;
     double gw_discharge_exponent;
 
     /* Surface routing */

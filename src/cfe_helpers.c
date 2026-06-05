@@ -559,7 +559,7 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     // Groundwater
     p->gw_max_storage_m                        = cfg->gw_reservoir_max_storage_m;
     p->gw_init_storage_m                       = cfg->gw_reservoir_init_storage_m;
-    p->gw_discharge_coeff_m_per_s              = cfg->gw_discharge_coeff_m_per_timestep;
+    p->gw_discharge_coeff_m_per_timestep              = cfg->gw_discharge_coeff_m_per_timestep;
     p->gw_discharge_exponent                   = cfg->gw_discharge_exponent;
 
     // Surface routing
@@ -1030,7 +1030,7 @@ int cfe_step(const cfe_parameters_struct* p,
     gw_res.storage_max_m                   = p->gw_max_storage_m;
     gw_res.storage_m                       = s->gw_storage_m;
     gw_res.is_exponential                  = TRUE;  // CFE uses exponential groundwater discharge
-    gw_res.coeff_primary                   = p->gw_discharge_coeff_m_per_s;
+    gw_res.coeff_primary                   = p->gw_discharge_coeff_m_per_timestep;
     gw_res.exponent_primary                = p->gw_discharge_exponent;
     gw_res.storage_threshold_primary_m     = 0.0;  // No threshold ffor primary outlet
 
@@ -1322,7 +1322,7 @@ void print_cfe_input_debug(const cfe_options_struct*    o,
 
     printf("\n-- Groundwater Parameters --\n");
     printf("GW max storage:                 %.6f [m]\n", p->gw_max_storage_m);
-    printf("GW discharge coeff:             %.6e [m h^-1]\n", p->gw_discharge_coeff_m_per_s);
+    printf("GW discharge coeff:             %.6e [m h^-1]\n", p->gw_discharge_coeff_m_per_timestep);
     printf("GW discharge exponent:          %.3f [-]\n", p->gw_discharge_exponent);
     printf("\n");
 
@@ -1414,7 +1414,7 @@ void print_exchange_values(int timestep,
         printf("Wilting point:                  %.3f [V/V]\n", p->wilting_point);
         printf("Ksat:                           %.6e [m/s]\n", p->ksat_m_per_s);
         printf("GW max storage:                 %.6f [m]\n", p->gw_max_storage_m);
-        printf("GW discharge coeff:             %.6e [m/s]\n", p->gw_discharge_coeff_m_per_s);
+        printf("GW discharge coeff:             %.6e [m/s]\n", p->gw_discharge_coeff_m_per_timestep);
         printf("GW discharge exponent:          %.3f [-]\n", p->gw_discharge_exponent);
     }
     
