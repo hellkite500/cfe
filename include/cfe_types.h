@@ -222,7 +222,7 @@ typedef struct {
     double alpha_pt;   // orginally 1.26, but often smaller for deserts and can be larger
 
     /* Xinanjiang, read even if not used */
-    double xj_tension_inflection_0_1;
+    double xj_tension_inflection_point;
     double xj_tension_b;
     double xj_free_b;
 

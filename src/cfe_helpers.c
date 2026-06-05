@@ -383,8 +383,8 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
 
     // Xinanjiang parameters (if selected)
     if (is_xinan) {
-        if (is_oob(cfg->soil_Xinanjiang_tension_water_inflection_point, 0.0, 1.0)) {
-            fprintf(stderr, "ERROR: soil_Xinanjiang_tension_water_inflection_point %.3e out of bounds [0.0, 1.0]\n",
+        if (is_oob(cfg->soil_Xinanjiang_tension_water_inflection_point, -0.49, 0.49)) {
+            fprintf(stderr, "ERROR: soil_Xinanjiang_tension_water_inflection_point %.3e out of bounds [-0.49, 0.49]\n",
                     cfg->soil_Xinanjiang_tension_water_inflection_point);
             return -1;
         }
@@ -552,7 +552,7 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     p->field_capacity_storage_m = p->field_capacity_moisture_content * p->soil_depth_m;
 
     // Xinanjiang
-    p->xj_tension_inflection_0_1               = cfg->soil_Xinanjiang_tension_water_inflection_point;
+    p->xj_tension_inflection_point               = cfg->soil_Xinanjiang_tension_water_inflection_point;
     p->xj_tension_b                            = cfg->soil_Xinanjiang_tension_water_soil_moist_distrib_exponent;
     p->xj_free_b                               = cfg->soil_Xinanjiang_free_water_soil_moist_distrib_exponent;
 
@@ -1045,7 +1045,7 @@ int cfe_step(const cfe_parameters_struct* p,
         (o->liquid_partitioning_scheme == PARTITION_XINANJIANG) ? PARTITION_XINANJIANG : PARTITION_SCHAAKE;
     // Schaake magic constant is normally derived; pick a conservative defaulty unless you already have one
     rp.Schaake_adjusted_magic_constant_by_soil_type = p->schaake_magic_constant;
-    rp.a_Xinanjiang_inflection_point_parameter      = p->xj_tension_inflection_0_1;
+    rp.a_Xinanjiang_inflection_point_parameter      = p->xj_tension_inflection_point;
     rp.b_Xinanjiang_shape_parameter                 = p->xj_tension_b;
     rp.x_Xinanjiang_shape_parameter                 = p->xj_free_b;
     rp.urban_decimal_fraction                       = 0.0;

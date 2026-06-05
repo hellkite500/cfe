@@ -115,7 +115,7 @@ static double* param_field_ptr(CFE_Model_Context *ctx, const char *name) {
     if (strcmp(name, "gw_max_storage_m") == 0)                      return &p->gw_max_storage_m;
     if (strcmp(name, "soil_saturated_capillary_head") == 0)         return &p->sat_capillary_head_m;
     if (strcmp(name, "soil_field_capacity_fraction") == 0)          return &p->field_capacity_Pcap_over_Patm;
-    if (strcmp(name, "Xinanjiang_inflection_a") == 0)               return &p->xj_tension_inflection_0_1;
+    if (strcmp(name, "Xinanjiang_inflection_a") == 0)               return &p->xj_tension_inflection_point;
     if (strcmp(name, "Xinanjiang_shape_b") == 0)                    return &p->xj_tension_b;
     if (strcmp(name, "Xinanjiang_shape_x") == 0)                    return &p->xj_free_b;
     if (strcmp(name, "Priestley_Taylor_alpha") == 0)                return &p->alpha_pt;

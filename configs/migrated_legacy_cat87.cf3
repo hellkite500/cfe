@@ -37,7 +37,7 @@ state_gw_reservoir_init_storage_m=1.250000000000000e-01[m]
 
 # Partitioning Scheme
 partitioning_scheme_name=Xinanjiang
-partitioning_Xinanjiang_tension_water_inflection_point=1.000000000000000e+00[]
+partitioning_Xinanjiang_tension_water_inflection_point=0.000000000000000e+00[]
 partitioning_Xinanjiang_tension_water_soil_moist_distrib_exponent=1.000000000000000e+00[]
 partitioning_Xinanjiang_free_water_soil_moist_distrib_exponent=1.000000000000000e+00[]
 
