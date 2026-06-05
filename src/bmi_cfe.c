@@ -152,6 +152,11 @@ static int Update(Bmi *self) {
 
     CFE_Model_Context *ctx = CONTEXT(self);
 
+    /* BMI inputs arrive as rates (m/s); convert to depth (m) for the timestep */
+    double dt = (double)ctx->options.time_step_seconds;
+    ctx->forcing.rainfall_depth_m *= dt;
+    ctx->forcing.et_potential_m   *= dt;
+
     /* accumulate input BEFORE the step so mass_in is consistent on failure */
     ctx->volbal.cumulative_vol += ctx->forcing.rainfall_depth_m;
 
@@ -267,8 +272,11 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
         return BMI_SUCCESS;
 
     if (strcmp(name, "rainfall_depth_m")         == 0 ||
-        strcmp(name, "et_potential_m")           == 0 ||
-        strcmp(name, "discharge_m")              == 0 ||
+        strcmp(name, "et_potential_m")           == 0) {
+        strcpy(units, "m s-1");
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, "discharge_m")              == 0 ||
         strcmp(name, "surface_runoff_m")         == 0 ||
         strcmp(name, "lateral_flow_m")           == 0 ||
         strcmp(name, "baseflow_m")               == 0 ||

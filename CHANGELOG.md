@@ -69,8 +69,8 @@ Input variables (v2 → v3):
 
 | v2 | v3 |
 |----|-----|
-| `atmosphere_water__liquid_equivalent_precipitation_rate` | `rainfall_depth_m` (m/timestep) |
-| `water_potential_evaporation_flux` | `et_potential_m` (m/timestep) |
+| `atmosphere_water__liquid_equivalent_precipitation_rate` | `rainfall_depth_m` (m s-1) |
+| `water_potential_evaporation_flux` | `et_potential_m` (m s-1) |
 
 Calibration parameters (v2 alias → v3 canonical name). v2 aliases are no
 longer accepted — use the v3 name only:

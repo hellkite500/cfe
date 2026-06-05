@@ -290,13 +290,16 @@ int main(int argc, char* argv[])
             forcing.et_potential_m = calculate_pet_priestley_taylor(&forcing, (int)model_dt_seconds, alpha_pt);
         }
         
-        // Set forcing values via BMI
-        if (model->set_value(model, "rainfall_depth_m", &forcing.rainfall_depth_m) != BMI_SUCCESS) {
+        // BMI inputs are rates (m/s); convert depth values from forcing reader
+        double rain_rate = forcing.rainfall_depth_m / model_dt_seconds;
+        double pet_rate  = forcing.et_potential_m   / model_dt_seconds;
+
+        if (model->set_value(model, "rainfall_depth_m", &rain_rate) != BMI_SUCCESS) {
             fprintf(stderr, "ERROR: Failed to set rainfall_depth_m at timestep %d\n", t);
             break;
         }
-        
-        if (model->set_value(model, "et_potential_m", &forcing.et_potential_m) != BMI_SUCCESS) {
+
+        if (model->set_value(model, "et_potential_m", &pet_rate) != BMI_SUCCESS) {
             fprintf(stderr, "ERROR: Failed to set et_potential_m at timestep %d\n", t);
             break;
         }

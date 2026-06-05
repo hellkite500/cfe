@@ -154,7 +154,7 @@ The realization config should reference the shared library and a v3 config:
 
 ### BMI Variable Names
 
-**Inputs:** `rainfall_depth_m` (m/timestep), `et_potential_m` (m/timestep)
+**Inputs:** `rainfall_depth_m` (m s-1), `et_potential_m` (m s-1)
 
 **Key outputs:** `discharge_m`, `surface_runoff_m`, `lateral_flow_m`,
 `baseflow_m`, `actual_et_m` (all m/timestep)

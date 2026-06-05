@@ -42,7 +42,7 @@ int test_mass_balance_protocol(TestFixture* fixture)
     }
 
     /* run 5 timesteps with rainfall, then 5 dry timesteps */
-    double rain_m = 0.005;   /* 5 mm per timestep */
+    double rain_m = 0.005 / 3600.0;   /* 5 mm/timestep as rate in m/s */
     double no_rain = 0.0;
     double pet_m = 0.0;
 
@@ -931,8 +931,8 @@ int test_get_value_at_indices(TestFixture* fixture)
         return TEST_RETURN_CODE_FAIL;
     }
 
-    /* Run one step so array state has non-trivial values */
-    double rain = 0.005, pet = 0.0;
+    /* Run one step so array state has non-trivial values (rate in m/s) */
+    double rain = 0.005 / 3600.0, pet = 0.0;
     m->set_value(m, "rainfall_depth_m", &rain);
     m->set_value(m, "et_potential_m", &pet);
     m->update(m);
@@ -1253,8 +1253,8 @@ int test_get_var_units(TestFixture* fixture)
         "m",    /* timestep_output_m */
         "m",    /* timestep_storage_end_m */
         /* 2 inputs */
-        "m",    /* rainfall_depth_m */
-        "m"     /* et_potential_m */
+        "m s-1",    /* rainfall_depth_m */
+        "m s-1"     /* et_potential_m */
     };
 
     for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {
@@ -1710,7 +1710,7 @@ int test_serialization_round_trip(TestFixture* fixture)
         return TEST_RETURN_CODE_FAIL;
     }
 
-    double rain = 0.005, pet = 0.0;
+    double rain = 0.005 / 3600.0, pet = 0.0;
     int trigger = 1;
 
     /* --- Phase 1: advance 5 steps to build up state --- */
@@ -1895,7 +1895,7 @@ int test_serialization_round_trip_dsbm(TestFixture* fixture)
         return TEST_RETURN_CODE_FAIL;
     }
 
-    double rain = 0.005, pet = 0.0;
+    double rain = 0.005 / 3600.0, pet = 0.0;
     int trigger = 1;
 
     /* --- Phase 1: advance 5 steps --- */
@@ -2071,7 +2071,7 @@ int test_derived_quantities_resync(TestFixture* fixture)
     m->set_value(m, "soil_Clapp_Hornberger_b", &new_b);
 
     /* Run one step to trigger any resync logic */
-    double rain = 0.005, pet = 0.0;
+    double rain = 0.005 / 3600.0, pet = 0.0;
     m->set_value(m, "rainfall_depth_m", &rain);
     m->set_value(m, "et_potential_m", &pet);
     m->update(m);
@@ -2166,7 +2166,7 @@ int test_dsbm_soil_params_resync(TestFixture* fixture)
     m->set_value(m, "soil_effective_porosity", &new_porosity);
 
     /* Run one step to trigger resync */
-    double rain = 0.005, pet = 0.0;
+    double rain = 0.005 / 3600.0, pet = 0.0;
     m->set_value(m, "rainfall_depth_m", &rain);
     m->set_value(m, "et_potential_m", &pet);
     m->update(m);
@@ -2261,7 +2261,7 @@ static double run_and_get_discharge(const char *cfg_file,
         }
     }
 
-    double rain_m = 0.005;
+    double rain_m = 0.005 / 3600.0;
     double pet_m  = 0.0;
     double cumulative_q = 0.0;
 
