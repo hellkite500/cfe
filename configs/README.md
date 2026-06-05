@@ -58,8 +58,8 @@ most parameters the units are the same; the exceptions are:
 
 | Parameter | Config Unit | BMI Unit | Conversion |
 |-----------|-------------|----------|------------|
-| Saturated hydraulic conductivity | cm h-1 | m s-1 | divide by 360,000 |
-| Saturated capillary head | cm | m | divide by 100 |
+| Saturated hydraulic conductivity | cm h-1 | cm h-1 | none (same units) |
+| Saturated capillary head | cm | cm | none (same units) |
 | GW discharge coefficient | m timestep-1 | m s-1 | divide by timestep (s) |
 
 ### Soil Parameters
@@ -68,8 +68,8 @@ most parameters the units are the same; the exceptions are:
 |-----------|-------------|----------|----------|-------|-------------|
 | `soil_depth_m` | m | `param_soil_depth_m` | m | — | Soil column depth |
 | `soil_Clapp_Hornberger_exponent_b`\* | - | `soil_Clapp_Hornberger_b` | - | 2.0–15.0 | Clapp-Hornberger exponent |
-| `soil_sat_hydraulic_conductivity_cm_per_h`\* | cm h-1 | `soil_saturated_hydraulic_conductivity` | m s-1 | 0.07–510.0 cm/h | Saturated hydraulic conductivity |
-| `soil_sat_capillary_head_cm`\* | cm | `soil_saturated_capillary_head` | m | — | Saturated capillary head |
+| `soil_sat_hydraulic_conductivity_cm_per_h`\* | cm h-1 | `soil_saturated_hydraulic_conductivity` | cm h-1 | 0.07–510.0 cm/h | Saturated hydraulic conductivity |
+| `soil_sat_capillary_head_cm`\* | cm | `soil_saturated_capillary_head` | cm | — | Saturated capillary head |
 | `soil_effective_porosity`\* | - | `soil_effective_porosity` | - | 0.16–0.58 | Effective porosity |
 | `soil_wilting_point_moisture_content` | - | — | — | — | Auto-calculated from Clapp-Hornberger at 15 atm |
 | `soil_to_gw_percolation_rate_limiter_0_to_1`\* | - | `soil_percolation_rate_limiter` | - | 0.0–1.0 | Percolation rate limiter |

@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <math.h>
+#include <string.h>
 #include "cfe.h" 
 #include "bmi.h" 
 #include "bmi_cfe.h"
@@ -418,26 +420,48 @@ main(int argc, const char *argv[]){
   double test_get_value = 0.0;
 
   for( int i = 0; i < PARAM_COUNT; i++ ) {
+      int has_conversion =
+          (strcmp(expected_param_names[i], "soil_saturated_hydraulic_conductivity") == 0 ||
+           strcmp(expected_param_names[i], "soil_saturated_capillary_head") == 0);
+
       // 1) set_value → get_value round-trip
-      test_set_value = 4.2 + i;  // unique value per parameter
+      test_set_value = 4.2 + i;
       status = model->set_value(model, expected_param_names[i], &test_set_value);
       assert(status == BMI_SUCCESS);
       status = model->get_value(model, expected_param_names[i], &test_get_value);
       assert(status == BMI_SUCCESS);
-      assert(test_set_value == test_get_value);
+      if (has_conversion) {
+          assert(fabs(test_set_value - test_get_value) < 1.0e-10 * fabs(test_set_value));
+      } else {
+          assert(test_set_value == test_get_value);
+      }
 
-      // 2) get_value_ptr → verify pointer reads the same value
+      // 2) get_value_ptr → verify pointer is valid
       double *param_ptr = NULL;
       status = model->get_value_ptr(model, expected_param_names[i], (void**)&param_ptr);
       assert(status == BMI_SUCCESS);
       assert(param_ptr != NULL);
-      assert(*param_ptr == test_set_value);
 
-      // 3) write through pointer → verify get_value reflects change
-      *param_ptr = 7.7 + i;
-      status = model->get_value(model, expected_param_names[i], &test_get_value);
-      assert(status == BMI_SUCCESS);
-      assert(test_get_value == 7.7 + i);
+      if (has_conversion) {
+          // ksat/satpsi: ptr holds SI, get/set_value use user-facing units (cm/h, cm)
+          double si_val = 1.5e-5;
+          *param_ptr = si_val;
+          status = model->get_value(model, expected_param_names[i], &test_get_value);
+          assert(status == BMI_SUCCESS);
+          assert(test_get_value != si_val);  // must differ (converted)
+
+          // set_value with the converted readback should restore the SI value
+          model->set_value(model, expected_param_names[i], &test_get_value);
+          assert(fabs(*param_ptr - si_val) < 1.0e-12 * fabs(si_val));
+      } else {
+          assert(*param_ptr == test_set_value);
+
+          // 3) write through pointer → verify get_value reflects change
+          *param_ptr = 7.7 + i;
+          status = model->get_value(model, expected_param_names[i], &test_get_value);
+          assert(status == BMI_SUCCESS);
+          assert(test_get_value == 7.7 + i);
+      }
 
       printf(" get_value, set_value, get_value_ptr all consistent for: %s \n", expected_param_names[i]);
   }

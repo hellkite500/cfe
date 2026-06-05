@@ -86,7 +86,7 @@ static const int OUTPUT_VAR_NAME_COUNT = 23;
 /* --- calibration parameters (get_value / set_value / get_value_ptr) --- */
 static const char* param_var_names[] = {
     "soil_effective_porosity",                   /*  0  dimensionless */
-    "soil_saturated_hydraulic_conductivity",     /*  1  m/s */
+    "soil_saturated_hydraulic_conductivity",     /*  1  cm/h */
     "soil_percolation_rate_limiter",             /*  2  0-1 */
     "soil_Clapp_Hornberger_b",                  /*  3  dimensionless */
     "soil_lateral_flow_K",                       /*  4  per h */
@@ -94,7 +94,7 @@ static const char* param_var_names[] = {
     "gw_discharge_coefficient",                  /*  6  m/s */
     "gw_discharge_exponent",                     /*  7  dimensionless */
     "gw_max_storage_m",                          /*  8  m */
-    "soil_saturated_capillary_head",             /*  9  m */
+    "soil_saturated_capillary_head",             /*  9  cm */
     "soil_field_capacity_fraction",              /* 10  Pcap/Patm */
     "Xinanjiang_inflection_a",                   /* 11  0-1 */
     "Xinanjiang_shape_b",                        /* 12  dimensionless */
@@ -323,16 +323,20 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "soil_ice_imperv_threshold") == 0) {
         strcpy(units, "-");  /* dimensionless fractions (V/V or 0-1) */
     }
-    else if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0 ||
-             strcmp(name, "gw_discharge_coefficient") == 0) {
+    else if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0) {
+        strcpy(units, "cm h-1");
+    }
+    else if (strcmp(name, "soil_saturated_capillary_head") == 0) {
+        strcpy(units, "cm");
+    }
+    else if (strcmp(name, "gw_discharge_coefficient") == 0) {
         strcpy(units, "m s-1");
     }
     else if (strcmp(name, "soil_lateral_flow_K") == 0 ||
              strcmp(name, "subsurface_nash_K") == 0) {
         strcpy(units, "h-1");
     }
-    else if (strcmp(name, "soil_saturated_capillary_head") == 0 ||
-             strcmp(name, "gw_max_storage_m") == 0) {
+    else if (strcmp(name, "gw_max_storage_m") == 0) {
         strcpy(units, "m");
     }
     else if (strcmp(name, "soil_Clapp_Hornberger_b") == 0 ||
@@ -504,6 +508,16 @@ static int Get_value(Bmi *self, const char *name, void *dest) {
             d[i] = CONTEXT(self)->state.giuh_queue_m[i];
         return BMI_SUCCESS;
     }
+    /* Params with BMI-boundary unit conversion (internal SI → user-facing) */
+    if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0) {
+        *(double*)dest = m_per_s_to_cm_per_h(CONTEXT(self)->parameters.ksat_m_per_s);
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, "soil_saturated_capillary_head") == 0) {
+        *(double*)dest = m_to_cm(CONTEXT(self)->parameters.sat_capillary_head_m);
+        return BMI_SUCCESS;
+    }
+
     /* All other variables: delegate through get_value_ptr */
     void *ptr = NULL;
     if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)
@@ -626,6 +640,18 @@ static int Set_value(Bmi *self, const char *name, void *src) {
             CONTEXT(self)->state.giuh_queue_m[i] = s[i];
         return BMI_SUCCESS;
     }
+    /* Params with BMI-boundary unit conversion (user-facing → internal SI) */
+    if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0) {
+        CONTEXT(self)->parameters.ksat_m_per_s = cm_per_h_to_m_per_s(*(double*)src);
+        CONTEXT(self)->params_dirty = 1;
+        return BMI_SUCCESS;
+    }
+    if (strcmp(name, "soil_saturated_capillary_head") == 0) {
+        CONTEXT(self)->parameters.sat_capillary_head_m = cm_to_m(*(double*)src);
+        CONTEXT(self)->params_dirty = 1;
+        return BMI_SUCCESS;
+    }
+
     /* All other variables: delegate through get_value_ptr */
     void *ptr = NULL;
     if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)

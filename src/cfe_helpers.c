@@ -31,10 +31,7 @@
 #include "soil_helpers.h"  // Brings in codes needed for discrete soil moisture simulation
 #include "soil_config.h"   // THETA_MIN
 
-static inline double cm_to_m(double x) { return x / 100.0; }
-static inline double cm_per_h_to_m_per_s(double x) { return (x / 100.0) / 3600.0; }
-
-// Helper functions 
+// Helper functions
 
 static void trim_inplace(char* s)
 {

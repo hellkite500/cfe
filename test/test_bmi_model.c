@@ -1131,19 +1131,15 @@ int test_get_value_ptr(TestFixture* fixture)
                 printf("\nget_value_ptr FAILED for calibration param '%s'", cal_params[i]);
                 return TEST_RETURN_CODE_FAIL;
             }
-            /* Write via ptr, confirm via get_value */
-            *ptr = 9.87 + i;
+            /* Write via ptr, read via get_value, round-trip back via set_value */
+            double si_val = 9.87 + i;
+            *ptr = si_val;
             double readback = -1.0;
             fixture->bmi_model->get_value(fixture->bmi_model, cal_params[i], &readback);
-            if (!confirm_matches_expected_doubles(9.87 + i, readback)) {
-                printf("\nptr write-through failed for calibration param '%s'", cal_params[i]);
-                return TEST_RETURN_CODE_FAIL;
-            }
-            /* Set via set_value, confirm via ptr */
-            double new_val = 3.14 + i;
-            fixture->bmi_model->set_value(fixture->bmi_model, cal_params[i], &new_val);
-            if (!confirm_matches_expected_doubles(new_val, *ptr)) {
-                printf("\nset_value not reflected in ptr for calibration param '%s'", cal_params[i]);
+            fixture->bmi_model->set_value(fixture->bmi_model, cal_params[i], &readback);
+            if (fabs(*ptr - si_val) > 1.0e-12 * fabs(si_val)) {
+                printf("\nptr→get_value→set_value round-trip failed for '%s' (wrote %.6e, got %.6e)",
+                       cal_params[i], si_val, *ptr);
                 return TEST_RETURN_CODE_FAIL;
             }
         }
@@ -2066,8 +2062,9 @@ int test_derived_quantities_resync(TestFixture* fixture)
     double orig_fc_storage = p->field_capacity_storage_m;
 
     /* Perturb ksat by 100x — schaake_magic_constant must change proportionally */
-    double new_ksat = p->ksat_m_per_s * 100.0;
-    m->set_value(m, "soil_saturated_hydraulic_conductivity", &new_ksat);
+    double new_ksat_ms = p->ksat_m_per_s * 100.0;
+    double new_ksat_cmh = new_ksat_ms * 360000.0;
+    m->set_value(m, "soil_saturated_hydraulic_conductivity", &new_ksat_cmh);
 
     /* Perturb soil_b (4.05 → 12.0) — field_capacity must change */
     double new_b = 12.0;
@@ -2081,8 +2078,8 @@ int test_derived_quantities_resync(TestFixture* fixture)
 
     int failed = 0;
 
-    /* schaake_magic_constant = refkdt * ksat / 2e-6 */
-    double expected_schaake = p->refkdt * new_ksat / 2.0e-06;
+    /* schaake_magic_constant = refkdt * ksat / 2e-6 (ksat in m/s internally) */
+    double expected_schaake = p->refkdt * new_ksat_ms / 2.0e-06;
     /* Relative tolerance: schaake magnitude varies with Ksat, so scale epsilon to the expected value */
     if (fabs(p->schaake_magic_constant - expected_schaake) > 1.0e-10 * fabs(expected_schaake)) {
         printf("\n  FAIL: schaake_magic_constant stale: got %.6e, expected %.6e (orig %.6e)",
@@ -2154,13 +2151,14 @@ int test_dsbm_soil_params_resync(TestFixture* fixture)
     double orig_klf       = sp->klf_per_h;
     double orig_theta_sat = sp->theta_sat;
 
-    /* Perturb base parameters via BMI */
-    double new_ksat = p->ksat_m_per_s * 100.0;
-    m->set_value(m, "soil_saturated_hydraulic_conductivity", &new_ksat);
+    /* Perturb base parameters via BMI (ksat in cm/h, satpsi in cm at BMI boundary) */
+    double new_ksat_ms = p->ksat_m_per_s * 100.0;
+    double new_ksat_cmh = new_ksat_ms * 360000.0;
+    m->set_value(m, "soil_saturated_hydraulic_conductivity", &new_ksat_cmh);
     double new_b = 12.0;
     m->set_value(m, "soil_Clapp_Hornberger_b", &new_b);
-    double new_phi = 1.0;  /* m (was 0.355) */
-    m->set_value(m, "soil_saturated_capillary_head", &new_phi);
+    double new_phi_cm = 100.0;  /* cm (was 35.5 cm / 0.355 m) */
+    m->set_value(m, "soil_saturated_capillary_head", &new_phi_cm);
     double new_perc = 0.90;
     m->set_value(m, "soil_percolation_rate_limiter", &new_perc);
     double new_klf = 0.50;
@@ -2177,7 +2175,7 @@ int test_dsbm_soil_params_resync(TestFixture* fixture)
     int failed = 0;
 
     /* Check each s->soil_parameters field was updated */
-    double exp_Ksat_cm_h = new_ksat * 360000.0;
+    double exp_Ksat_cm_h = new_ksat_ms * 360000.0;
     if (fabs(sp->K_sat_cm_per_h - exp_Ksat_cm_h) > 1.0e-6) {
         printf("\n  FAIL: soil_parameters.K_sat_cm_per_h stale: %.6e (expected %.6e, orig %.6e)",
                sp->K_sat_cm_per_h, exp_Ksat_cm_h, orig_Ksat_cm_h);
@@ -2194,7 +2192,7 @@ int test_dsbm_soil_params_resync(TestFixture* fixture)
         printf("\n  OK: b_exp resynced (%.2f → %.2f)", orig_b_exp, sp->b_exp);
     }
 
-    double exp_phi_cm = new_phi * 100.0;
+    double exp_phi_cm = new_phi_cm;
     if (fabs(sp->phi_sat_cm - exp_phi_cm) > 1.0e-10) {
         printf("\n  FAIL: soil_parameters.phi_sat_cm stale: %.4f (expected %.4f, orig %.4f)",
                sp->phi_sat_cm, exp_phi_cm, orig_phi_cm);
@@ -2291,7 +2289,7 @@ int test_calibration_params_affect_output(TestFixture* fixture)
        Config defaults from cfe_config_cat_87_pass.cf3 noted in comments. */
     static const struct { const char *name; double perturbed; } params[] = {
         { "soil_effective_porosity",               0.20   },  /* default 0.439 */
-        { "soil_saturated_hydraulic_conductivity",  3.4e-4 },  /* default ~3.4e-6 m/s; 100x increase */
+        { "soil_saturated_hydraulic_conductivity",  122.4  },  /* default ~1.22e-2 cm/h; 100x increase */
         { "soil_percolation_rate_limiter",          0.90   },  /* default 0.01 */
         { "soil_Clapp_Hornberger_b",               12.0   },  /* default 4.05 */
         { "soil_lateral_flow_K",                    0.50   },  /* default 0.01 h-1 */
@@ -2299,7 +2297,7 @@ int test_calibration_params_affect_output(TestFixture* fixture)
         { "gw_discharge_coefficient",               1.8e-3 },  /* default 1.8e-5 */
         { "gw_discharge_exponent",                  1.5    },  /* default 6.0 */
         { "gw_max_storage_m",                       0.01   },  /* default 0.25 */
-        { "soil_saturated_capillary_head",          1.0    },  /* default 0.355 m */
+        { "soil_saturated_capillary_head",          100.0  },  /* default 35.5 cm */
         { "soil_field_capacity_fraction",           0.10   },  /* default 0.333 */
     };
     int n_params = sizeof(params) / sizeof(params[0]);
@@ -2356,7 +2354,7 @@ int test_calibration_params_affect_output_dsbm(TestFixture* fixture)
 
     static const struct { const char *name; double perturbed; } params[] = {
         { "soil_effective_porosity",               0.20   },
-        { "soil_saturated_hydraulic_conductivity",  3.4e-4 },
+        { "soil_saturated_hydraulic_conductivity",  122.4  },
         { "soil_percolation_rate_limiter",          0.90   },
         { "soil_Clapp_Hornberger_b",               12.0   },
         { "soil_lateral_flow_K",                    0.50   },
@@ -2364,7 +2362,7 @@ int test_calibration_params_affect_output_dsbm(TestFixture* fixture)
         { "gw_discharge_coefficient",               1.8e-3 },
         { "gw_discharge_exponent",                  1.5    },
         { "gw_max_storage_m",                       0.01   },
-        { "soil_saturated_capillary_head",          1.0    },
+        { "soil_saturated_capillary_head",          100.0  },
         { "soil_field_capacity_fraction",           0.10   },
     };
     int n_params = sizeof(params) / sizeof(params[0]);

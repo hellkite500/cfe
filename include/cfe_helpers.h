@@ -18,6 +18,12 @@
 #include "cfe.h"
 #include "cfe_soil_discrete.h"
 
+/* Unit conversions between config/BMI units and internal SI */
+static inline double cm_to_m(double x)              { return x / 100.0; }
+static inline double m_to_cm(double x)              { return x * 100.0; }
+static inline double cm_per_h_to_m_per_s(double x)  { return x / 360000.0; }
+static inline double m_per_s_to_cm_per_h(double x)  { return x * 360000.0; }
+
 /* Defaults */
 
 int is_fabs_less_than_epsilon(double a,double epsilon);

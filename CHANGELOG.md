@@ -78,7 +78,7 @@ longer accepted — use the v3 name only:
 | v2 (removed) | v3 | BMI Unit |
 |----|----|------|
 | `maxsmc` | `soil_effective_porosity` | - |
-| `satdk` | `soil_saturated_hydraulic_conductivity` | m s-1 |
+| `satdk` | `soil_saturated_hydraulic_conductivity` | cm h-1 |
 | `slope` | `soil_percolation_rate_limiter` | - |
 | `b` | `soil_Clapp_Hornberger_b` | - |
 | `Klf` | `soil_lateral_flow_K` | h-1 |
@@ -86,7 +86,7 @@ longer accepted — use the v3 name only:
 | `Cgw` | `gw_discharge_coefficient` | m s-1 |
 | `expon` | `gw_discharge_exponent` | - |
 | `max_gw_storage` | `gw_max_storage_m` | m |
-| `satpsi` | `soil_saturated_capillary_head` | m |
+| `satpsi` | `soil_saturated_capillary_head` | cm |
 | `alpha_fc` | `soil_field_capacity_fraction` | - |
 | `a_Xinanjiang_inflection_point_parameter` | `Xinanjiang_inflection_a` | - |
 | `b_Xinanjiang_shape_parameter` | `Xinanjiang_shape_b` | - |

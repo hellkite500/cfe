@@ -161,8 +161,8 @@ The realization config should reference the shared library and a v3 config:
 `soil_to_gw_percolation_flux_m` (all m/timestep)
 
 **Calibration parameters** (16 total, accessible via `set_value` / `get_value_ptr`):
-BMI parameter names use internal SI units (m/s for conductivity, m for head).
-Config files use human-readable units (cm/h, cm) — the conversion is automatic.
+BMI parameter names use user-facing units (cm/h for conductivity, cm for
+head), matching the config file conventions.
 See [README.md](README.md#calibration-parameters) for the full config-to-BMI
 mapping table, or `bmi_cfe.c` `param_var_names[]` for the authoritative list.
 

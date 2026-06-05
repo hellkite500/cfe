@@ -46,14 +46,14 @@ template.
 CFE exposes 16 calibration parameters via BMI `set_value` / `get_value_ptr`.
 Config files use descriptive key names with units in the name (e.g.,
 `soil_sat_hydraulic_conductivity_cm_per_h`). The BMI interface uses shorter
-canonical names with values in internal SI units (e.g.,
-`soil_saturated_hydraulic_conductivity` in m/s). Unit conversion happens
-automatically at config parse time.
+canonical names with values in user-facing units (e.g.,
+`soil_saturated_hydraulic_conductivity` in cm/h). Unit conversion to
+internal SI happens automatically inside the BMI layer.
 
 | BMI Parameter Name | BMI Unit | Config Key | Config Unit |
 |----|------|-----|------|
 | `soil_effective_porosity` | - | `soil_effective_porosity` | - |
-| `soil_saturated_hydraulic_conductivity` | m s-1 | `soil_sat_hydraulic_conductivity_cm_per_h` | cm h-1 |
+| `soil_saturated_hydraulic_conductivity` | cm h-1 | `soil_sat_hydraulic_conductivity_cm_per_h` | cm h-1 |
 | `soil_percolation_rate_limiter` | - | `soil_to_gw_percolation_rate_limiter_0_to_1` | - |
 | `soil_Clapp_Hornberger_b` | - | `soil_Clapp_Hornberger_exponent_b` | - |
 | `soil_lateral_flow_K` | h-1 | `soil_reservoir_rate_const_to_subsurface_lateral_flow` | h-1 |
@@ -61,7 +61,7 @@ automatically at config parse time.
 | `gw_discharge_coefficient` | m s-1 | `gw_discharge_coeff_m_per_timestep` | m timestep-1 |
 | `gw_discharge_exponent` | - | `gw_discharge_exponent` | - |
 | `gw_max_storage_m` | m | `gw_reservoir_max_storage_m` | m |
-| `soil_saturated_capillary_head` | m | `soil_sat_capillary_head_cm` | cm |
+| `soil_saturated_capillary_head` | cm | `soil_sat_capillary_head_cm` | cm |
 | `soil_field_capacity_fraction` | - | `soil_field_capacity_Pcap_over_Patm_0_1` | - |
 | `Xinanjiang_inflection_a` | - | `partitioning_Xinanjiang_tension_water_inflection_point` | - |
 | `Xinanjiang_shape_b` | - | `partitioning_Xinanjiang_tension_water_soil_moist_distrib_exponent` | - |
@@ -69,9 +69,9 @@ automatically at config parse time.
 | `Priestley_Taylor_alpha` | - | `control_ET_simulate_Priestley_Taylor` | - |
 | `soil_ice_imperv_threshold` | - | `soil_ice_content_impervious_threshold` | - |
 
-The BMI uses internal model units so that coupling frameworks (like ngen) can
-do unit-aware data exchange. Config files use human-readable units (cm/h for
-Ksat, cm for capillary head) so hydrologists can edit them directly.
+Both the BMI interface and config files use the same user-facing units (cm/h
+for Ksat, cm for capillary head) so values are human-interpretable. Internal
+model computations use SI; conversion happens inside the BMI layer.
 
 Note: `refkdt` is a constant (=3.0, per Schaake et al. 1996) and is not
 exposed as a calibration parameter. `soil_wilting_point` is auto-calculated
