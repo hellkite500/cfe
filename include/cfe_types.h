@@ -386,6 +386,9 @@ typedef struct {
     double baseflow_m;
     double qout_m;
     double actual_et_m;
+    double potential_et_m;
+    double giuh_outflow_m;
+    double soil_to_gw_percolation_flux_m;
 } cfe_outputs_struct;
 
 /* CFE model context: the whole model instance bundled together */

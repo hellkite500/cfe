@@ -74,9 +74,14 @@ static const char* output_var_names[] = {
     "timestep_storage_start_m",                 /* 16 */
     "timestep_input_m",                         /* 17 */
     "timestep_output_m",                        /* 18 */
-    "timestep_storage_end_m"                    /* 19 */
+    "timestep_storage_end_m",                   /* 19 */
+
+    /* Additional flux outputs */
+    "potential_et_m",                           /* 20 */
+    "giuh_outflow_m",                           /* 21 */
+    "soil_to_gw_percolation_flux_m"             /* 22 */
 };
-static const int OUTPUT_VAR_NAME_COUNT = 20;
+static const int OUTPUT_VAR_NAME_COUNT = 23;
 
 /* --- calibration parameters (get_value / set_value / get_value_ptr) --- */
 static const char* param_var_names[] = {
@@ -288,7 +293,10 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
         strcmp(name, "timestep_storage_start_m") == 0 ||
         strcmp(name, "timestep_input_m")         == 0 ||
         strcmp(name, "timestep_output_m")        == 0 ||
-        strcmp(name, "timestep_storage_end_m")   == 0) {
+        strcmp(name, "timestep_storage_end_m")   == 0 ||
+        strcmp(name, "potential_et_m")          == 0 ||
+        strcmp(name, "giuh_outflow_m")          == 0 ||
+        strcmp(name, "soil_to_gw_percolation_flux_m") == 0) {
         strcpy(units, "m");
     }
     else if (strcmp(name, "state_soil_moisture_theta") == 0 ||
@@ -543,6 +551,9 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "timestep_output_m") == 0)        { *dest = &ctx->timestep_output_m;                      return BMI_SUCCESS; }
     if (strcmp(name, "timestep_storage_end_m") == 0)   { *dest = &ctx->timestep_storage_end_m;                 return BMI_SUCCESS; }
     if (strcmp(name, "vol_balance_residual_m") == 0) { *dest = &ctx->vol_balance_residual_m;                return BMI_SUCCESS; }
+    if (strcmp(name, "potential_et_m") == 0)           { *dest = &ctx->last_outputs.potential_et_m;             return BMI_SUCCESS; }
+    if (strcmp(name, "giuh_outflow_m") == 0)           { *dest = &ctx->last_outputs.giuh_outflow_m;            return BMI_SUCCESS; }
+    if (strcmp(name, "soil_to_gw_percolation_flux_m") == 0) { *dest = &ctx->last_outputs.soil_to_gw_percolation_flux_m; return BMI_SUCCESS; }
 
     /* --- state arrays (BMI output variables for checkpointing/hotstart) --- */
     if (strcmp(name, "state_soil_moisture_theta") == 0)     { *dest = ctx->state.soil_discrete_storage_theta;  return BMI_SUCCESS; }

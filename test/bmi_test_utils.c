@@ -33,6 +33,9 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         "timestep_input_m",
         "timestep_output_m",
         "timestep_storage_end_m",
+        "potential_et_m",
+        "giuh_outflow_m",
+        "soil_to_gw_percolation_flux_m",
         /* 2 inputs (model forcing only) */
         "rainfall_depth_m",
         "et_potential_m"

@@ -21,7 +21,7 @@ CFE v3 migration from reference implementation by Fred L. Ogden (NOAA/NWS Office
 #### BMI
 - `CONTEXT(self)` macro pattern: model state (`CFE_Model_Context`) stored in
   `Bmi.data`, accessed cleanly throughout bmi_cfe.c.
-- 20 output variables (was 15), 2 input variables (was 5) — see tables below.
+- 23 output variables (was 15), 2 input variables (was 5) — see tables below.
 - Array state variables on dedicated grids: `state_soil_moisture_theta` (grid 1,
   NDISC), `state_nash_subsurface_storage` (grid 2, 2 elements),
   `state_giuh_queue` (grid 3, num_giuh elements).

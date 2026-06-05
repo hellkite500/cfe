@@ -1131,12 +1131,15 @@ int cfe_step(const cfe_parameters_struct* p,
 
     // 10) Write outputs
 
-    out->surface_runoff_generated_m = infiltration_excess_m;              // NEW NAME
-    out->surface_routed_to_outlet_m = flux_direct_runoff_to_channel_m;    // NEW NAME  
+    out->surface_runoff_generated_m = infiltration_excess_m;
+    out->surface_routed_to_outlet_m = flux_direct_runoff_to_channel_m;
     out->lateral_flow_m   = flux_nash_subsurface_lateral_runoff_m;
     out->baseflow_m       = flux_from_deep_gw_to_chan_m;
     out->qout_m           = Qout_m;
     out->actual_et_m      = et.actual_et_m_per_timestep;
+    out->potential_et_m   = et.potential_et_m_per_timestep;
+    out->giuh_outflow_m   = flux_direct_runoff_to_channel_m;
+    out->soil_to_gw_percolation_flux_m = flux_perc_m;
     
     // Advance step count
     s->current_time_step += 1;

@@ -1231,7 +1231,7 @@ int test_get_var_units(TestFixture* fixture)
     /* v3 expected units — codified so accidental changes are caught.
      * Order must match the variable names in bmi_test_utils.c setup(). */
     char* expected_units[EXPECTED_TOTAL_VAR_COUNT] = {
-        /* 20 outputs */
+        /* 23 outputs */
         "m",    /* discharge_m */
         "m",    /* surface_runoff_m */
         "m",    /* lateral_flow_m */
@@ -1252,6 +1252,9 @@ int test_get_var_units(TestFixture* fixture)
         "m",    /* timestep_input_m */
         "m",    /* timestep_output_m */
         "m",    /* timestep_storage_end_m */
+        "m",    /* potential_et_m */
+        "m",    /* giuh_outflow_m */
+        "m",    /* soil_to_gw_percolation_flux_m */
         /* 2 inputs */
         "m s-1",    /* rainfall_depth_m */
         "m s-1"     /* et_potential_m */

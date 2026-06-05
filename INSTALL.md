@@ -157,7 +157,8 @@ The realization config should reference the shared library and a v3 config:
 **Inputs:** `rainfall_depth_m` (m s-1), `et_potential_m` (m s-1)
 
 **Key outputs:** `discharge_m`, `surface_runoff_m`, `lateral_flow_m`,
-`baseflow_m`, `actual_et_m` (all m/timestep)
+`baseflow_m`, `actual_et_m`, `potential_et_m`, `giuh_outflow_m`,
+`soil_to_gw_percolation_flux_m` (all m/timestep)
 
 **Calibration parameters** (16 total, accessible via `set_value` / `get_value_ptr`):
 BMI parameter names use internal SI units (m/s for conductivity, m for head).
