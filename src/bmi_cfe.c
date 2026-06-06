@@ -79,9 +79,15 @@ static const char* output_var_names[] = {
     /* Additional flux outputs */
     "potential_et_m",                           /* 20 */
     "giuh_outflow_m",                           /* 21 */
-    "soil_to_gw_percolation_flux_m"             /* 22 */
+    "soil_to_gw_percolation_flux_m",            /* 22 */
+
+    /* Per-layer DSBM soil moisture (scalar aliases for ngen CSV output) */
+    "soil_moisture_theta_1",                    /* 23 */
+    "soil_moisture_theta_2",                    /* 24 */
+    "soil_moisture_theta_3",                    /* 25 */
+    "soil_moisture_theta_4"                     /* 26 */
 };
-static const int OUTPUT_VAR_NAME_COUNT = 23;
+static const int OUTPUT_VAR_NAME_COUNT = 27;
 
 /* --- calibration parameters (get_value / set_value / get_value_ptr) --- */
 static const char* param_var_names[] = {
@@ -300,7 +306,11 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
         strcpy(units, "m");
     }
     else if (strcmp(name, "state_soil_moisture_theta") == 0 ||
-             strcmp(name, "param_soil_porosity") == 0) {
+             strcmp(name, "param_soil_porosity") == 0 ||
+             strcmp(name, "soil_moisture_theta_1") == 0 ||
+             strcmp(name, "soil_moisture_theta_2") == 0 ||
+             strcmp(name, "soil_moisture_theta_3") == 0 ||
+             strcmp(name, "soil_moisture_theta_4") == 0) {
         strcpy(units, "-");
     }
     else if (strcmp(name, "state_nash_subsurface_storage") == 0 ||
@@ -568,6 +578,12 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "potential_et_m") == 0)           { *dest = &ctx->last_outputs.potential_et_m;             return BMI_SUCCESS; }
     if (strcmp(name, "giuh_outflow_m") == 0)           { *dest = &ctx->last_outputs.giuh_outflow_m;            return BMI_SUCCESS; }
     if (strcmp(name, "soil_to_gw_percolation_flux_m") == 0) { *dest = &ctx->last_outputs.soil_to_gw_percolation_flux_m; return BMI_SUCCESS; }
+
+    /* --- per-layer DSBM soil moisture scalars --- */
+    if (strcmp(name, "soil_moisture_theta_1") == 0) { *dest = &ctx->state.soil_discrete_storage_theta[0]; return BMI_SUCCESS; }
+    if (strcmp(name, "soil_moisture_theta_2") == 0) { *dest = &ctx->state.soil_discrete_storage_theta[1]; return BMI_SUCCESS; }
+    if (strcmp(name, "soil_moisture_theta_3") == 0) { *dest = &ctx->state.soil_discrete_storage_theta[2]; return BMI_SUCCESS; }
+    if (strcmp(name, "soil_moisture_theta_4") == 0) { *dest = &ctx->state.soil_discrete_storage_theta[3]; return BMI_SUCCESS; }
 
     /* --- state arrays (BMI output variables for checkpointing/hotstart) --- */
     if (strcmp(name, "state_soil_moisture_theta") == 0)     { *dest = ctx->state.soil_discrete_storage_theta;  return BMI_SUCCESS; }

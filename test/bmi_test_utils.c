@@ -12,7 +12,7 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
     fixture->cfg_file = cfg_file;
 
     char* var_names[EXPECTED_TOTAL_VAR_COUNT] = {
-        /* 21 outputs */
+        /* 27 outputs */
         "discharge_m",
         "surface_runoff_m",
         "lateral_flow_m",
@@ -36,6 +36,10 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         "potential_et_m",
         "giuh_outflow_m",
         "soil_to_gw_percolation_flux_m",
+        "soil_moisture_theta_1",
+        "soil_moisture_theta_2",
+        "soil_moisture_theta_3",
+        "soil_moisture_theta_4",
         /* 2 inputs (model forcing only) */
         "rainfall_depth_m",
         "et_potential_m"
