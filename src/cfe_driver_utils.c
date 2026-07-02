@@ -1083,6 +1083,8 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
             cfg->control_ET_deepest_root_zone_discretization);
     fprintf(hotstart_fptr, "control_soil_use_lookup_table_num_points=%d\n",
             cfg->control_soil_use_lookup_table_num_points);
+    fprintf(hotstart_fptr, "control_soil_simulate_freeze_thaw_true_false=%s\n",
+            cfg->control_soil_simulate_freeze_thaw_true_false ? "TRUE" : "FALSE");
     fprintf(hotstart_fptr, "\n");
 
     // Catchment Characteristics
@@ -1102,6 +1104,9 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     if (cfg->cat_longitude != 0.0) {
         fprintf(hotstart_fptr, "catchment_longitude_decimal_degree=%.4f[decimaldegree]\n", cfg->cat_longitude);
     }
+    if (cfg->cat_elev != 0.0) {
+        fprintf(hotstart_fptr, "catchment_elevation=%.2f[m]\n", cfg->cat_elev);
+    }
     if (cfg->cat_area_km2 != 0.0) {
         fprintf(hotstart_fptr, "catchment_area_km2=%e[km2]\n", cfg->cat_area_km2);
     }
@@ -1120,8 +1125,10 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
             cfg->soil_field_capacity_Pcap_over_Patm_0_1);
     fprintf(hotstart_fptr, "soil_reservoir_rate_const_to_subsurface_lateral_flow=%e[h-1]\n", 
             cfg->soil_reservoir_rate_const_to_subsurface_lateral_flow);
-    fprintf(hotstart_fptr, "soil_to_gw_percolation_rate_limiter_0_to_1=%e[]\n", 
+    fprintf(hotstart_fptr, "soil_to_gw_percolation_rate_limiter_0_to_1=%e[]\n",
             cfg->soil_to_gw_percolation_rate_limiter_0_to_1);
+    fprintf(hotstart_fptr, "soil_ice_content_impervious_threshold=%.4f[]\n",
+            cfg->soil_ice_content_impervious_threshold);
     fprintf(hotstart_fptr, "\n");
 
     // Initial soil moisture storage - UPDATE WITH CURRENT STATE
