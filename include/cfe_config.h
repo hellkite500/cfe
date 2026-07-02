@@ -63,6 +63,7 @@ typedef struct CFE_CONFIG
     double timestep_h;
     char   timestep_units[UNIT_STRING_LENGTH];
     char   cat_id[CAT_NAME_STRING_LENGTH];
+    // Catchment metadata — parsed for debug/diagnostic output only, not used by the model.
     double cat_latitude;
     char   cat_latitude_units[UNIT_STRING_LENGTH];
     double cat_longitude;

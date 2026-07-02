@@ -278,6 +278,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         else if (string_compare_ignore_case(keyword, "catchment_id") == 0) {
             safe_strcpy(config->cat_id, sizeof(config->cat_id), value_part);
         }
+        // Catchment metadata — debug/diagnostic output only, not used by the model.
         else if (string_compare_ignore_case(keyword, "catchment_latitude_decimal_degree") == 0) {
             config->cat_latitude = atof(value_part);
             snprintf(config->cat_latitude_units, sizeof(config->cat_latitude_units), "%s", units);

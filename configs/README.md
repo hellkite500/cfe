@@ -136,6 +136,17 @@ was removed as it did not produce added model skill.
 | `control_soil_use_lookup_table_num_points` | LUT points (0 = analytic) |
 | `control_ET_deepest_root_zone_discretization` | Deepest root zone layer (1–NDISC) |
 
+### Catchment Metadata (debug only)
+
+| Config Key | Unit | Description |
+|-----------|------|-------------|
+| `catchment_latitude_decimal_degree` | degrees | Latitude of catchment centroid |
+| `catchment_longitude_decimal_degree` | degrees | Longitude of catchment centroid |
+| `catchment_elevation` | m | Mean catchment elevation |
+
+These fields are parsed and included in diagnostic output (`print_config`) but
+are **not used by the model**. They are retained for provenance and debugging.
+
 Calibration ranges are from NWM calibration experience (OWP/FLO). Parameters
 marked `—` have no established calibration range or are not typically calibrated.
 
