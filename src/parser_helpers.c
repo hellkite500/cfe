@@ -328,10 +328,6 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         else if (string_compare_ignore_case(keyword, "soil_effective_porosity") == 0) {
             config->soil_effective_porosity = atof(value_part);
         }
-//   Because this is not an input parameter ffor CFE versions >= 3, it is appropriately calculated from Clapp-Hornberger relation
-//        else if (string_compare_ignore_case(keyword, "soil_wilting_point_moisture_content") == 0) {
-//            config->soil_wilting_point_moisture_content = atof(value_part);
-//        }
         else if (string_compare_ignore_case(keyword, "soil_field_capacity_Pcap_over_Patm_0_1") == 0) {
             config->soil_field_capacity_Pcap_over_Patm_0_1 = atof(value_part);
         }

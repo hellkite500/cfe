@@ -1116,7 +1116,6 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
             cfg->soil_sat_hydraulic_conductivity_cm_per_h);
     fprintf(hotstart_fptr, "soil_sat_capillary_head_cm=%.4f[cm]\n", cfg->soil_sat_capillary_head_cm);
     fprintf(hotstart_fptr, "soil_effective_porosity=%.4f[V V-1]\n", cfg->soil_effective_porosity);
-    fprintf(hotstart_fptr, "soil_wilting_point_moisture_content=%.4f[V V-1]\n", cfg->soil_wilting_point_moisture_content);
     fprintf(hotstart_fptr, "soil_field_capacity_Pcap_over_Patm_0_1=%.4f[P P-1]\n", 
             cfg->soil_field_capacity_Pcap_over_Patm_0_1);
     fprintf(hotstart_fptr, "soil_reservoir_rate_const_to_subsurface_lateral_flow=%e[h-1]\n", 

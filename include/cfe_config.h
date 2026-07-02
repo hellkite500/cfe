@@ -85,7 +85,6 @@ typedef struct CFE_CONFIG
     char   soil_sat_capillary_head_units[UNIT_STRING_LENGTH];
     double soil_to_gw_percolation_rate_limiter_0_to_1;
     double soil_effective_porosity;
-    double soil_wilting_point_moisture_content;
     double soil_field_capacity_Pcap_over_Patm_0_1;
     double soil_reservoir_init_storage_m;
     char   soil_reservoir_init_storage_units[UNIT_STRING_LENGTH];

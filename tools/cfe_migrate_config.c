@@ -374,7 +374,7 @@ static int write_v3_config(const char *path, const V2Config *v2)
     fprintf(fp, "soil_sat_hydraulic_conductivity_cm_per_h=" FMT "[cm h-1]\n", v2->satdk_m_per_s);
     fprintf(fp, "soil_sat_capillary_head_cm=" FMT "[cm]\n", v2->satpsi_m);
     fprintf(fp, "soil_effective_porosity=" FMT "[]\n", v2->smcmax);
-    fprintf(fp, "soil_wilting_point_moisture_content=" FMT "[]\n", v2->wltsmc);
+    // soil_wilting_point_moisture_content removed from v3 — auto-calculated internally
     fprintf(fp, "soil_field_capacity_Pcap_over_Patm_0_1=" FMT "[]\n", v2->alpha_fc);
     fprintf(fp, "soil_to_gw_percolation_rate_limiter_0_to_1=" FMT "[]\n", v2->slop);
     fprintf(fp, "soil_reservoir_rate_const_to_subsurface_lateral_flow=" FMT "[h-1]\n", v2->k_lf);

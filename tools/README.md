@@ -42,7 +42,7 @@ skipped (exit 0, no output written).
 | `soil_params.satdk` | `soil_sat_hydraulic_conductivity_cm_per_h` | **m/s → cm/h** (×360,000) |
 | `soil_params.satpsi` | `soil_sat_capillary_head_cm` | **m → cm** (×100) |
 | `soil_params.smcmax` | `soil_effective_porosity` | |
-| `soil_params.wltsmc` | `soil_wilting_point_moisture_content` | Auto-calculated if missing |
+| `soil_params.wltsmc` | *(dropped)* | v3 auto-calculates from Clapp-Hornberger; v2 value is not migrated |
 | `soil_params.slop` | `soil_to_gw_percolation_rate_limiter_0_to_1` | |
 | `alpha_fc` | `soil_field_capacity_Pcap_over_Patm_0_1` | |
 | `K_lf` | `soil_reservoir_rate_const_to_subsurface_lateral_flow` | |

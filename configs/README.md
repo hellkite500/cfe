@@ -28,6 +28,7 @@ See `clean_config.cf3` for a fully annotated template of all options.
 | `migrated_legacy_cat87.cf3` | Xinanjiang | Linear reservoir | Integration test (migrated from v2) |
 | `bmi_config_cat87_v3.cf3` | Schaake | DSBM (4-layer) | Integration test, DSBM enabled |
 | `cfe_config_cat87_v3.cf3` | Schaake | DSBM (4-layer) | Standalone driver config |
+| `laramie_dry_start_v3.cf3` | Schaake | DSBM (4-layer) | Integration test, dry start exercises wilting point ET reduction |
 | `clean_config.cf3` | — | — | Annotated template |
 
 ## Migrating from v2
@@ -76,7 +77,6 @@ per-second units in BMI:
 | `soil_sat_hydraulic_conductivity_cm_per_h`\* | cm h-1 | `soil_saturated_hydraulic_conductivity` | cm h-1 | 0.07–510.0 cm/h | Saturated hydraulic conductivity |
 | `soil_sat_capillary_head_cm`\* | cm | `soil_saturated_capillary_head` | cm | — | Saturated capillary head |
 | `soil_effective_porosity`\* | - | `soil_effective_porosity` | - | 0.16–0.58 | Effective porosity |
-| `soil_wilting_point_moisture_content` | - | — | — | — | Auto-calculated from Clapp-Hornberger at 15 atm |
 | `soil_to_gw_percolation_rate_limiter_0_to_1`\* | - | `soil_percolation_rate_limiter` | - | 0.0–1.0 | Percolation rate limiter |
 | `soil_field_capacity_Pcap_over_Patm_0_1`\* | - | `soil_field_capacity_fraction` | - | 0.15–0.33 | Field capacity; typically not calibrated |
 | `soil_reservoir_rate_const_to_subsurface_lateral_flow`\* | h-1 | `soil_lateral_flow_K` | h-1 | 0.0–1.0 | Lateral flow rate constant |

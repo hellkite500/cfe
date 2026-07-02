@@ -158,8 +158,6 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
     const double alpha_fc_HIGH          = 0.35;   // 0.36 typ. ffor other soil textures
     const double porosity_LOW           = 0.05;   // 0.16 used in NWM calibration
     const double porosity_HIGH          = 0.7;    // 0.58 used in NWM calibration 0.7 is pretty darn high (volcanic clays)
-    const double wilting_LOW            = 0.0;    // Maybe someone doesn't know it.  Allow 0.0
-    const double wilting_HIGH           = 0.4;    // This is probably higher than ever physically possible
     const double gw_max_storage_LOW_m   = 0.01;   // 0.01 used in NWM calibration
     const double gw_max_storage_HIGH_m  = 3.0;    // 0.25 used in NWM calibration        
     const double gw_init_LOW_m          = 0.0;
@@ -218,15 +216,6 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
     if (is_oob(cfg->soil_Clapp_Hornberger_exponent_b, claphorn_b_LOW, claphorn_b_HIGH)) {
         fprintf(stderr, "ERROR: soil_Clapp_Hornberger_exponent_b %.3e out of bounds [%.3e, %.3e]\n",
                 cfg->soil_Clapp_Hornberger_exponent_b, claphorn_b_LOW, claphorn_b_HIGH);
-        return -1;
-    }
-    
-    // Wilting point - special casse with multiple conditions
-    if (cfg->soil_wilting_point_moisture_content < wilting_LOW ||
-        cfg->soil_wilting_point_moisture_content > cfg->soil_effective_porosity ||
-        cfg->soil_wilting_point_moisture_content > wilting_HIGH) {
-        fprintf(stderr, "ERROR: soil_wilting_point_moisture_content %.3e must be in [%.3e, min(porosity, %.3e)]\n",
-                cfg->soil_wilting_point_moisture_content, wilting_LOW, wilting_HIGH);
         return -1;
     }
     
@@ -522,7 +511,6 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     p->ksat_m_per_s                            = cm_per_h_to_m_per_s(cfg->soil_sat_hydraulic_conductivity_cm_per_h);
     p->sat_capillary_head_m                    = cm_to_m(cfg->soil_sat_capillary_head_cm);
     p->effective_porosity                      = cfg->soil_effective_porosity;
-    p->wilting_point                           = cfg->soil_wilting_point_moisture_content;
     p->field_capacity_Pcap_over_Patm           = cfg->soil_field_capacity_Pcap_over_Patm_0_1;
     p->soil_init_storage_m                     = cfg->soil_reservoir_init_storage_m;
     p->soil_k_lateral_per_h                    = cfg->soil_reservoir_rate_const_to_subsurface_lateral_flow;
@@ -547,6 +535,10 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     double arg = (p->field_capacity_Pcap_over_Patm * psi_atm_m/p->sat_capillary_head_m);
     p->field_capacity_moisture_content = p->effective_porosity * pow(arg, (-1.0/p->soil_b));
     p->field_capacity_storage_m = p->field_capacity_moisture_content * p->soil_depth_m;
+
+    // Wilting point at 15 atm suction via Clapp-Hornberger
+    double psi_15atm_m = 15.0 * psi_atm_m;
+    p->wilting_point = p->effective_porosity * pow(psi_15atm_m / p->sat_capillary_head_m, -1.0 / p->soil_b);
 
     // Xinanjiang
     p->xj_tension_inflection_point               = cfg->soil_Xinanjiang_tension_water_inflection_point;

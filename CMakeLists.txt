@@ -213,6 +213,16 @@ add_test(NAME integration_v3_dsbm
 )
 set_tests_properties(integration_v3_dsbm PROPERTIES LABELS "integration")
 
+add_test(NAME integration_v3_dry_start
+    COMMAND bash ${INTEGRATION_TEST_SCRIPT}
+        $<TARGET_FILE:cfe_bmi_driver>
+        ${PROJECT_SOURCE_DIR}/configs/laramie_dry_start_v3.cf3
+        ${PROJECT_SOURCE_DIR}/forcings/Laramie_dry_start_30day.csv
+        ${PROJECT_SOURCE_DIR}/test/golden/v3_dry_start
+        1e-10
+)
+set_tests_properties(integration_v3_dry_start PROPERTIES LABELS "integration")
+
 # Restart test: split forcing, run two halves via hotstart, compare to continuous run
 set(RESTART_TEST_SCRIPT ${PROJECT_SOURCE_DIR}/test/run_restart_test.sh)
 

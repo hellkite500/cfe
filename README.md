@@ -74,8 +74,7 @@ for Ksat, cm for capillary head) so values are human-interpretable. Internal
 model computations use SI; conversion happens inside the BMI layer.
 
 Note: `refkdt` is a constant (=3.0, per Schaake et al. 1996) and is not
-exposed as a calibration parameter. `soil_wilting_point` is auto-calculated
-from Clapp-Hornberger parameters.
+exposed as a calibration parameter.
 
 ## Testing
 

@@ -168,8 +168,7 @@ See [README.md](README.md#calibration-parameters) for the full config-to-BMI
 mapping table, or `bmi_cfe.c` `param_var_names[]` for the authoritative list.
 
 Note: `refkdt` is a constant (=3.0, per Schaake et al. 1996) and is not
-calibratable. `soil_wilting_point` is auto-calculated from Clapp-Hornberger
-parameters and is not exposed as a calibration parameter.
+calibratable.
 
 ### Notes
 
