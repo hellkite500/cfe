@@ -104,7 +104,8 @@ Optional:
 ## Config File Format
 
 CFE v3 uses a keyword-based config format with `cfe_config_version=3.0`.
-Comments with `#` or `//`, one keyword per line, optional units in brackets:
+Comments with `#` or `//`, one keyword per line, optional unit annotations in
+brackets (for human readability only — not parsed for conversion):
 ```
 cfe_config_version=3.0[]
 control_model_timestep_h=1.0[h]

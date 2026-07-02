@@ -6,7 +6,10 @@ codebase, see the [v2.1.0 tag](https://github.com/NOAA-OWP/cfe/tree/v2.1.0).
 
 ## Config Format
 
-Comments with `#` or `//`, one keyword per line, optional units in brackets:
+Comments with `#` or `//`, one keyword per line, optional unit annotations in
+brackets. The bracketed units are for human readability only — the parser
+strips them but does not interpret or convert based on them. Values must
+always be in the units indicated by the key name:
 ```
 cfe_config_version=3.0[]
 control_model_timestep_h=1.0[h]
@@ -51,16 +54,18 @@ Parameters marked with \* are calibratable via BMI `set_value` /
 ### Config Units vs BMI Units
 
 Config files use human-readable units so hydrologists can edit them directly
-(e.g., `soil_sat_hydraulic_conductivity_cm_per_h=1.2168`). The BMI interface
-exposes values in internal SI units for consistent coupling with frameworks
-like ngen. Unit conversion happens automatically at config parse time. For
-most parameters the units are the same; the exceptions are:
+(e.g., `soil_sat_hydraulic_conductivity_cm_per_h=1.2168`). The expected unit
+for each parameter is embedded in the key name — the `[unit]` brackets in
+config files are annotations for human readers and are not parsed.
 
-| Parameter | Config Unit | BMI Unit | Conversion |
-|-----------|-------------|----------|------------|
-| Saturated hydraulic conductivity | cm h-1 | cm h-1 | none (same units) |
-| Saturated capillary head | cm | cm | none (same units) |
-| GW discharge coefficient | m timestep-1 | m s-1 | divide by timestep (s) |
+The BMI interface uses the same user-facing units as the config file for
+all calibration parameters. The only exception is the groundwater
+discharge coefficient, which uses per-timestep units in the config but
+per-second units in BMI:
+
+| Parameter | Config Unit | BMI Unit |
+|-----------|-------------|----------|
+| GW discharge coefficient | m timestep-1 | m s-1 |
 
 ### Soil Parameters
 
