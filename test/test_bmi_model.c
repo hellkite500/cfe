@@ -1255,9 +1255,10 @@ int test_get_var_units(TestFixture* fixture)
         "-",    /* soil_moisture_theta_2 */
         "-",    /* soil_moisture_theta_3 */
         "-",    /* soil_moisture_theta_4 */
-        /* 2 inputs */
+        /* 3 inputs */
         "m s-1",    /* rainfall_depth_m */
-        "m s-1"     /* et_potential_m */
+        "m s-1",    /* et_potential_m */
+        "-"         /* ice_fraction */
     };
 
     for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {

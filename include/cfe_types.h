@@ -303,6 +303,7 @@ typedef struct {
     double UGRD_10maboveground;   // m/s
     double VGRD_10maboveground;   // m/s
     double precip_rate;           // m/s
+    double ice_fraction;          // 0-1, from external SFT module when coupled
 } cfe_forcing_struct;
 
 typedef struct {  //<----- needed in forcing reader...

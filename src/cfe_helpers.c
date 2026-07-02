@@ -790,6 +790,7 @@ int cfe_initialize(const cfe_parameters_struct* p,
         if (s->soil_control.deepest_root_disc < 1) s->soil_control.deepest_root_disc = 1;
         if (s->soil_control.deepest_root_disc > NDISC) s->soil_control.deepest_root_disc = NDISC;
         s->soil_control.use_ch_lookup_table = o->use_soil_lookup_table ? 1 : 0;
+        s->soil_control.is_sft_coupled = o->enable_freeze_thaw ? 1 : 0;
         s->soil_control.dt_hours = 1.0;  // CFE uses hourly timesteps
 
         if(o->verbosity > 1) {
@@ -1010,6 +1011,9 @@ int cfe_step(const cfe_parameters_struct* p,
     soil_res.storage_threshold_secondary_m = p->field_capacity_storage_m;
     soil_res.coeff_secondary               = p->soil_k_lateral_per_h;     // this one is really important
     soil_res.exponent_secondary            = 1.0;  // linear
+    soil_res.is_sft_coupled                = o->enable_freeze_thaw ? 1 : 0;
+    soil_res.ice_fraction_schaake          = forcing->ice_fraction;
+    soil_res.ice_fraction_xinanjiang       = forcing->ice_fraction;
     // NOTE: IN THIS ABOVE STRUCTURE IF I'M SIMULATING DISCRETE SOIL MOISTURE, THE ONLY THING NEEDED FROM IT
     //       IS THE soil_res.coeff_primary  THE REST IS NOT USED.
 
@@ -1072,10 +1076,13 @@ int cfe_step(const cfe_parameters_struct* p,
     double* giuh_ords = (double*)p->giuh_ordinates;
     double* giuh_queue = s->giuh_queue_m; 
 
+    // Propagate external ice fraction to DSBM soil state
+    s->soil_state_in.ice_fraction = forcing->ice_fraction;
+
     // add input rainfall and PET to the volbal structt this time step.
     volbal->volin += forcing->rainfall_depth_m;
     volbal->volin_PET += forcing->et_potential_m;
-    
+
     // 8) Call cfe model
     cfe(
         &s->soil_storage_deficit_m,

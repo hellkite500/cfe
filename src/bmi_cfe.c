@@ -40,9 +40,10 @@
  * The CSDMS BMI standard has no "string" type, and ngen rejects non-numeric inputs. */
 static const char* input_var_names[] = {
     "rainfall_depth_m",
-    "et_potential_m"
+    "et_potential_m",
+    "ice_fraction"
 };
-static const int INPUT_VAR_NAME_COUNT = 2;
+static const int INPUT_VAR_NAME_COUNT = 3;
 
 /* --- outputs --- */
 static const char* output_var_names[] = {
@@ -330,7 +331,8 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "soil_field_capacity_fraction") == 0 ||
              strcmp(name, "soil_percolation_rate_limiter") == 0 ||
              strcmp(name, "Xinanjiang_inflection_a") == 0 ||
-             strcmp(name, "soil_ice_imperv_threshold") == 0) {
+             strcmp(name, "soil_ice_imperv_threshold") == 0 ||
+             strcmp(name, "ice_fraction") == 0) {
         strcpy(units, "-");  /* dimensionless fractions (V/V or 0-1) */
     }
     else if (strcmp(name, "soil_saturated_hydraulic_conductivity") == 0) {
@@ -593,6 +595,7 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     /* --- inputs --- */
     if (strcmp(name, "rainfall_depth_m") == 0)  { *dest = &ctx->forcing.rainfall_depth_m;          return BMI_SUCCESS; }
     if (strcmp(name, "et_potential_m") == 0)    { *dest = &ctx->forcing.et_potential_m;             return BMI_SUCCESS; }
+    if (strcmp(name, "ice_fraction") == 0)      { *dest = &ctx->forcing.ice_fraction;              return BMI_SUCCESS; }
     if (strcmp(name, "verbosity") == 0)         { *dest = &ctx->options.verbosity;                  return BMI_SUCCESS; }
     /* --- calibration parameters --- */
     double *pp = param_field_ptr(ctx, name);
