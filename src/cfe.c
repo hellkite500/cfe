@@ -273,19 +273,20 @@ extern void cfe(
         if (!soil_control->is_sft_coupled)
           soil_state_in->ice_fraction = 0.0;
 
-        double column_total_field_capacity_storage_m = soil_parameters->theta_fc * NWM_soil_params_struct.D;
-        double column_total_max_soil_moisture_m = NWM_soil_params_struct.smcmax * NWM_soil_params_struct.D;
-        double column_total_soil_moisture_m = 0.0;
-        for (int i = 0; i < NDISC; i++)
+        double thickness_of_upper_two_discs_m          = soil_geometry->dz_m[0] + soil_geometry->dz_m[1];
+        double upper_two_disc_field_capacity_storage_m = soil_parameters->theta_fc * thickness_of_upper_two_discs_m;
+        double upper_two_disc_max_soil_moisture_m      = NWM_soil_params_struct.smcmax * thickness_of_upper_two_discs_m;
+        double upper_two_disc_total_soil_moisture_m    = 0.0;
+        for (int i = 0; i < 2; i++)
         {
-          column_total_soil_moisture_m += soil_state_in->theta_in[i] * soil_geometry->dz_m[i];
+          upper_two_disc_total_soil_moisture_m += soil_state_in->theta_in[i] * soil_geometry->dz_m[i];
         }
 
         Xinanjiang_partitioning_scheme(
             timestep_rainfall_input_m,
-            column_total_field_capacity_storage_m,
-            column_total_max_soil_moisture_m,
-            column_total_soil_moisture_m,
+            upper_two_disc_field_capacity_storage_m,
+            upper_two_disc_max_soil_moisture_m,
+            upper_two_disc_total_soil_moisture_m,
             &infiltration_excess_params_struct,
             &flux_surface_runoff_input_to_surface_routing_m,
             &infiltration_depth_m,
@@ -873,11 +874,11 @@ void Xinanjiang_partitioning_scheme(
   double S = free_water_m;
   double Smax = max_free_water_m;
 
-  *flux_surface_runoff_input_to_surface_routing_m = R * (1.0 - pow((1.0 - (S / Smax)), Ex)) + impervious_runoff_m;
+  double xinanjiang_runoff_m = R * (1.0 - pow((1.0 - (S / Smax)), Ex));
+  *flux_surface_runoff_input_to_surface_routing_m = xinanjiang_runoff_m + impervious_runoff_m;
 
-  // Separate the infiltration from the total water input depth to the soil surface.
-
-  *infiltration_depth_m = water_input_pervious_fraction_m - *flux_surface_runoff_input_to_surface_routing_m;
+  // Separate the infiltration from the pervious water input (not total flux which includes impervious)
+  *infiltration_depth_m = water_input_pervious_fraction_m - xinanjiang_runoff_m;
 
 #ifdef DEBUG
   if (fabs(water_input_depth_m - (*infiltration_depth_m) - (*flux_surface_runoff_input_to_surface_routing_m)) > 1.0e-06)
