@@ -285,12 +285,8 @@ int main(int argc, char* argv[])
             break;
         }
 
-        // Calculate PET if user requested (otherwise use PET from forcing data or 0)
-        if(enable_pt == TRUE) {
-            forcing.et_potential_m = calculate_pet_priestley_taylor(&forcing, (int)model_dt_seconds, alpha_pt);
-        }
-        
         // BMI inputs are rates (m/s); convert depth values from forcing reader
+        // P-T PET (if enabled) is calculated inside cfe_context_update()
         double rain_rate = forcing.rainfall_depth_m / model_dt_seconds;
         double pet_rate  = forcing.et_potential_m   / model_dt_seconds;
 
@@ -303,6 +299,8 @@ int main(int argc, char* argv[])
             fprintf(stderr, "ERROR: Failed to set et_potential_m at timestep %d\n", t);
             break;
         }
+
+        model->set_value(model, "day_of_year", &forcing.day_of_year);
 
         // get from BMI or trap the initial storage iff known
         if(t==0) {

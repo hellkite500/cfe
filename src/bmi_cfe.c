@@ -41,9 +41,10 @@
 static const char* input_var_names[] = {
     "rainfall_depth_m",
     "et_potential_m",
-    "ice_fraction"
+    "ice_fraction",
+    "day_of_year"
 };
-static const int INPUT_VAR_NAME_COUNT = 3;
+static const int INPUT_VAR_NAME_COUNT = 4;
 
 /* --- outputs --- */
 static const char* output_var_names[] = {
@@ -261,7 +262,8 @@ static int Get_var_type(Bmi *self, const char *name, char *type) {
 
     if (strcmp(name, "verbosity") == 0 ||
         strcmp(name, "state_current_timestep") == 0 ||
-        strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
+        strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
+        strcmp(name, "day_of_year") == 0) {
         strcpy(type, "int");
         return BMI_SUCCESS;
     }
@@ -323,7 +325,8 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
     }
     else if (strcmp(name, "verbosity") == 0 ||
              strcmp(name, "state_current_timestep") == 0 ||
-             strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
+             strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
+             strcmp(name, "day_of_year") == 0) {
         strcpy(units, "1");
     }
     /* --- calibration parameter units (internal representation) --- */
@@ -371,7 +374,8 @@ static int Get_var_itemsize(Bmi *self, const char *name, int *size) {
 
     if (strcmp(name, "verbosity") == 0 ||
         strcmp(name, "state_current_timestep") == 0 ||
-        strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
+        strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
+        strcmp(name, "day_of_year") == 0) {
         *size = sizeof(int);
     }
     else {
@@ -379,6 +383,7 @@ static int Get_var_itemsize(Bmi *self, const char *name, int *size) {
         char type[BMI_MAX_TYPE_NAME];
         if (Get_var_type(self, name, type) != BMI_SUCCESS) return BMI_FAILURE;
         if (strcmp(type, "double") == 0) *size = sizeof(double);
+        else if (strcmp(type, "int") == 0) *size = sizeof(int);
         else return BMI_FAILURE;
     }
     return BMI_SUCCESS;
@@ -399,7 +404,8 @@ static int Get_var_nbytes(Bmi *self, const char *name, int *nbytes) {
 
     if (strcmp(name, "verbosity") == 0 ||
         strcmp(name, "state_current_timestep") == 0 ||
-        strcmp(name, "config_simulate_discrete_soil_moisture") == 0) {
+        strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
+        strcmp(name, "day_of_year") == 0) {
         *nbytes = sizeof(int);
     }
     else if (strcmp(name, "state_soil_moisture_theta") == 0) {
@@ -596,6 +602,7 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "rainfall_depth_m") == 0)  { *dest = &ctx->forcing.rainfall_depth_m;          return BMI_SUCCESS; }
     if (strcmp(name, "et_potential_m") == 0)    { *dest = &ctx->forcing.et_potential_m;             return BMI_SUCCESS; }
     if (strcmp(name, "ice_fraction") == 0)      { *dest = &ctx->forcing.ice_fraction;              return BMI_SUCCESS; }
+    if (strcmp(name, "day_of_year") == 0)       { *dest = &ctx->forcing.day_of_year;               return BMI_SUCCESS; }
     if (strcmp(name, "verbosity") == 0)         { *dest = &ctx->options.verbosity;                  return BMI_SUCCESS; }
     /* --- calibration parameters --- */
     double *pp = param_field_ptr(ctx, name);

@@ -15,6 +15,8 @@
 #include "cfe_context.h"
 #include "cfe_helpers.h"
 #include "cfe_driver_utils.h"  // needed for cfe_initialize_volume_balance()
+#include "cfe_soil_skin_temperature.h"
+#include "cfe_pet_priestley_taylor.h"
 
 // This file contains the initial context setup to create a BMI model definition.  FLO 9/2025 with alot of help from claude.ai
 
@@ -109,7 +111,22 @@ int cfe_context_update(CFE_Model_Context* ctx)
     
     double dt = (double)ctx->options.time_step_seconds;
 
-    if (cfe_step(&ctx->parameters, &ctx->options, &ctx->state, &ctx->forcing, dt, 
+    if (ctx->options.enable_ET_Priestley_Taylor == TRUE) {
+        update_soil_skin_temperature_state(
+            &ctx->forcing,
+            ctx->options.time_step_seconds,
+            ctx->forcing.day_of_year,
+            &ctx->state);
+
+        ctx->forcing.et_potential_m =
+            calculate_pet_priestley_taylor(
+                &ctx->forcing,
+                ctx->options.time_step_seconds,
+                ctx->parameters.alpha_pt,
+                &ctx->state);
+    }
+
+    if (cfe_step(&ctx->parameters, &ctx->options, &ctx->state, &ctx->forcing, dt,
         &ctx->last_outputs, &ctx->volbal) != 0) {
        return -1;
     }

@@ -28,7 +28,8 @@
 #include "cfe_types.h"                 // All data types used in cfe model, outputs, etc.
 #include "cfe.h"                       // includes volbal structure definition
 #include "cfe_driver_utils.h"
-#include "cfe_pet_priestley_taylor.h" // Needed for testing purposes if PET is not provided
+#include "cfe_pet_priestley_taylor.h"
+#include "cfe_soil_skin_temperature.h"
 
 #define TIME_STRING_LENGTH 64
 
@@ -217,12 +218,17 @@ int main(int argc, char* argv[])
             memset(&forcing, 0, sizeof(forcing));
         }
 
-        // 12b. Calculate PET iff user requested
-        if(options.enable_ET_Priestley_Taylor == TRUE)
-            forcing.et_potential_m = calculate_pet_priestley_taylor(&forcing, 
-                                                                    options.time_step_seconds,
-                                                                    params.alpha_pt);
-        
+        // 12b. Calculate PET internally if P-T is enabled
+        if(options.enable_ET_Priestley_Taylor == TRUE) {
+            update_soil_skin_temperature_state(
+                &forcing, options.time_step_seconds,
+                forcing.day_of_year, &state);
+
+            forcing.et_potential_m = calculate_pet_priestley_taylor(
+                &forcing, options.time_step_seconds,
+                params.alpha_pt, &state);
+        }
+
         // 12c. Run CFE model step
         cfe_step(&params, &options, &state, &forcing, (double)options.time_step_seconds, &outputs, &volbal);
 

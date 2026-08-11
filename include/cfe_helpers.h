@@ -26,6 +26,9 @@ static inline double m_per_s_to_cm_per_h(double x)  { return x * 360000.0; }
 
 /* Defaults */
 
+int is_leap_year(int year);
+int calculate_day_of_year(int year, int month, int day);
+
 int is_fabs_less_than_epsilon(double a,double epsilon);
 
 void set_parameters_defaults(cfe_parameters_struct* params);

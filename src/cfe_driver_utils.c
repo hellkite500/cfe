@@ -438,8 +438,18 @@ int read_next_forcing_aorc(FILE* f, const aorc_cols_t* cols, int dt_seconds,
         forcing->rainfall_depth_m = 0.0;
     }
 
-    forcing->et_potential_m = 0.0;  // keep PET off for now
-    
+    forcing->et_potential_m = 0.0;  // calculated later if Priestley-Taylor is enabled
+
+    forcing->day_of_year = 1;
+    if (time_str != NULL && time_str[0] != '\0') {
+        aorc_forcing_time_struct parsed_time = {0};
+        if (parse_time_string(time_str, &parsed_time) == 0) {
+            forcing->day_of_year = calculate_day_of_year(parsed_time.year,
+                                                          parsed_time.month,
+                                                          parsed_time.day);
+        }
+    }
+
     return 1;
 }
 

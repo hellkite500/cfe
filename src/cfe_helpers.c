@@ -31,6 +31,32 @@
 #include "soil_helpers.h"  // Brings in codes needed for discrete soil moisture simulation
 #include "soil_config.h"   // THETA_MIN
 
+int is_leap_year(int year)
+{
+    return ((year % 4 == 0 && year % 100 != 0) ||
+            (year % 400 == 0));
+}
+
+int calculate_day_of_year(int year, int month, int day)
+{
+    static const int days_before_month[12] = {
+        0, 31, 59, 90, 120, 151,
+        181, 212, 243, 273, 304, 334
+    };
+
+    if (month < 1 || month > 12 || day < 1) {
+        return 1;
+    }
+
+    int day_of_year = days_before_month[month - 1] + day;
+
+    if (month > 2 && is_leap_year(year)) {
+        day_of_year++;
+    }
+
+    return day_of_year;
+}
+
 // Helper functions
 
 static void trim_inplace(char* s)

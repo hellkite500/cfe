@@ -247,6 +247,16 @@ typedef struct {
 
 } cfe_parameters_struct;
 
+/* Priestley-Taylor soil temperature state */
+typedef struct {
+    double skin_temperature_k;
+    double upper_soil_temperature_k;
+    double estimated_annual_air_temperature_k;
+    double air_temperature_time_integral_k_s;
+    double accumulated_time_s;
+    int initialized;
+} cfe_pet_temperature_state_struct;
+
 /* State: storages and internal queues that evolve over time.
  *
  * SERIALIZATION NOTE — the fields marked [SERIALIZED] below are the
@@ -286,8 +296,29 @@ typedef struct {
     SoilFluxes       soil_fluxes;
 
     int current_time_step;
-} cfe_state_struct;    
 
+    // Priestley-Taylor soil temperature state
+    cfe_pet_temperature_state_struct pet_temperature_state;
+} cfe_state_struct;
+
+
+/*
+ * DLWRF_surface [W m-2] is a real observed/modeled quantity and is
+ * physically always positive.  These constants let the energy-balance
+ * code distinguish "genuinely supplied and physically plausible" from
+ * "never set / garbage / sensor dropout" and fall back to a synthetic
+ * clear-sky estimate in the latter case.
+ */
+#define CFE_DLWRF_SURFACE_UNINITIALIZED_SENTINEL (-9999.0)
+#define CFE_DLWRF_SURFACE_MIN_VALID_W_PER_M2      (50.0)
+#define CFE_DLWRF_SURFACE_MAX_VALID_W_PER_M2      (600.0)
+
+/*
+ * Aerodynamic resistance [s/m] to atmosphere<->surface transfer.  Used
+ * for sensible-heat transfer to the skin (cfe_soil_skin_temperature.c)
+ * and vapor transfer to the soil surface (bare-soil evaporation).
+ */
+#define CFE_AERODYNAMIC_RESISTANCE_S_PER_M (100.0)
 
 /* Forcing: inputs per step */
 //############
@@ -296,7 +327,7 @@ typedef struct {
     double et_potential_m;        // PUT THIS SECOND - CFE expects it here!
     double APCP_surface;          // mm (converted to m for rain_m)
     double DLWRF_surface;         // W/m^2
-    double DSWRF_surface;         // W/m^2  
+    double DSWRF_surface;         // W/m^2
     double PRES_surface;          // Pa
     double SPFH_2maboveground;    // kg/kg
     double TMP_2maboveground;     // K
@@ -304,6 +335,7 @@ typedef struct {
     double VGRD_10maboveground;   // m/s
     double precip_rate;           // m/s
     double ice_fraction;          // 0-1, from external SFT module when coupled
+    int day_of_year;              // 1 through 366
 } cfe_forcing_struct;
 
 typedef struct {  //<----- needed in forcing reader...

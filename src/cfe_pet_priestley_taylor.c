@@ -1,106 +1,136 @@
 /*
  * NOAA-OWP/cfe - Version 3 of Conceptual Functional Equivalent to the stormflow/runoff
- *                generation components of the NOAA/NWS National Water Model version 3.1 
+ *                generation components of the NOAA/NWS National Water Model version 3.1
  *                and earlier
  *
- * Originally conceived and developed by: 
- *         Fred L. Ogden, Chief Scientist, NOAA/NWS 
+ * Originally conceived and developed by:
+ *         Fred L. Ogden, Chief Scientist, NOAA/NWS
  *         Office of Water Prediction, Tuscaloosa, AL
- *
  */
 
-
-// A SIMPLE IMPLEMENTATION OF PRIESTLEY-TAYLOR ET FOR TESTING PURPOSES
-// Uses OARC met variables (incoming shortwave and longwave radiation)
-// to calculate radiation balance et, then applies P-T method.  Note
-// this function is NOT intended ffor operational water prediction.
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-//                  ################################ 
-//                  ###FOR TESTING PURPOSES ONLY.###
-//                  ################################ 
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// This function simplistically assumes constant land-surface temperature,
-// ignores the influence of canopy, and assumes a constan atmospheric 
-// longwave emmissivity, which it isn't.  FLO 9/2025
-
 #include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stddef.h>
+
 #include "cfe_pet_priestley_taylor.h"
 
-// Priestley-Taylor potential evapotranspiration calculation
-// Returns PET in meters per timestep.  Included by FLO for testing purposes.
-// Priestley-Taylor potential evapotranspiration calculation
-// Returns PET in meters per timestep
-//###################################
-double calculate_pet_priestley_taylor(const cfe_forcing_struct* forcing, int dt_seconds, double alpha_pt)
+/*
+ * True if dlwrf_surface_w_per_m2 looks like a genuine, physically
+ * plausible observed/modeled value rather than the uninitialized
+ * sentinel, an unset 0.0 default, or garbage.  Kept in sync with the
+ * identical check in cfe_soil_skin_temperature.c; see the constants'
+ * definitions in cfe_types.h for the reasoning behind the bounds.
+ * Fred, 2026-08-06.
+ */
+static int dlwrf_surface_is_valid(double dlwrf_surface_w_per_m2)
 {
-    if (forcing == NULL || dt_seconds <= 0) return 0.0;
-    
-    // Constants
-    // const double ALPHA_PT = 1.26;          // Priestley-Taylor coefficient (dimensionless) from config file.
-    const double STEFAN_BOLTZMANN = 5.67e-8; // Stefan-Boltzmann constant (W/m^2/K^4)
-    const double LATENT_HEAT_VAPORIZATION = 2.45e6; // J/kg at 20C
-    const double PSYCHROMETRIC_CONSTANT = 0.0665;   // kPa/K (approximate at sea level)
-    const double LIQUID_WATER_DENSITY = 998.0;
-    
-    // Extract values from forcing structure
-    double temp_K = forcing->TMP_2maboveground;      // Temperature in Kelvin
-    
-    // Calculate net radiation properly
-    double surface_temperature_K = 282.0;   // THIS IS A MAJOR (bad) ASSUMPTION.  LAND SURFACE TEMPERATURE IS NOT CONSTANT.
-    double surface_albedo = 0.25;
-    double surface_longwave_rad_W_m_2 = STEFAN_BOLTZMANN * pow(surface_temperature_K, 4.0);
-    double atmos_emissivity = 0.757; // assumed
-    double downwelling_longwave = atmos_emissivity *  STEFAN_BOLTZMANN * pow(forcing->TMP_2maboveground,4.0);
-    double net_radiation = (1.0 - surface_albedo) * forcing->DSWRF_surface + downwelling_longwave - surface_longwave_rad_W_m_2;
-    
-    // Convert temperature to Celsius for some calculations
-    double temp_C = temp_K - 273.15;
-    
-    // Calculate saturation vapor pressure (Tetens equation) in kPa
-    if (temp_C <= -237.3) {
-        fprintf(stderr, "ERROR: air_temperature_C <= -237.3 C in calculate_pet_priestley_taylor().\n");
-        exit(EXIT_FAILURE);
-    }
-    double es_kPa = 0.6108 * exp((17.27 * temp_C) / (temp_C + 237.3));
+    return isfinite(dlwrf_surface_w_per_m2) &&
+           dlwrf_surface_w_per_m2 > CFE_DLWRF_SURFACE_MIN_VALID_W_PER_M2 &&
+           dlwrf_surface_w_per_m2 < CFE_DLWRF_SURFACE_MAX_VALID_W_PER_M2;
+}
 
-    // Calculate slope of saturation vapor pressure curve (kPa/K)
-    double delta = (4098.0 * es_kPa) / pow(temp_C + 237.3, 2.0);
-    
-    // For Priestley-Taylor, we need net radiation minus soil heat flux
-    // Assume soil heat flux is 10% of net radiation (typical approximation)
-    double available_energy = net_radiation * 0.9; // W/m^2
-    
-    // Handle negative available energy (nighttime/winter)
-    if (available_energy <= 0.0) {
-        return 0.0; // No evapotranspiration
+double calculate_pet_priestley_taylor(
+    const cfe_forcing_struct *forcing,
+    int dt_seconds,
+    double alpha_pt,
+    const cfe_state_struct *state)
+{
+    const double stefan_boltzmann = 5.670374419e-8;
+    const double surface_albedo = 0.25;
+    const double surface_emissivity = 0.96;
+    const double atmospheric_emissivity = 0.757;
+    const double latent_heat_vaporization_j_per_kg = 2.45e6;
+    const double psychrometric_constant_kpa_per_k = 0.0665;
+    const double liquid_water_density_kg_per_m3 = 998.0;
+    const double soil_thermal_conductivity_w_per_m_k = 1.0;
+    const double conduction_distance_m = 0.05;
+    double air_temperature_k;
+    double air_temperature_c;
+    double saturation_vapor_pressure_kpa;
+    double saturation_vapor_pressure_slope_kpa_per_k;
+    double downwelling_longwave_w_per_m2;
+    double outgoing_longwave_w_per_m2;
+    double net_radiation_w_per_m2;
+    double ground_heat_flux_w_per_m2;
+    double available_energy_w_per_m2;
+    double pet_rate_m_per_s;
+    double pet_m_per_timestep;
+    double maximum_pet_m_per_timestep;
+
+    const cfe_pet_temperature_state_struct *temperature_state;
+
+    if (forcing == NULL || state == NULL ||
+        dt_seconds <= 0 ||
+        !isfinite(alpha_pt) || alpha_pt <= 0.0) {
+        return 0.0;
     }
-    
-    // Priestley-Taylor equation: PET = alpha * (Delta/(Delta+gamma)) * (Rn-G) / lambda
-    // Where:
-    // alpha = Priestley-Taylor coefficient (1.26)
-    // Delta = slope of saturation vapor pressure curve (kPa/K)
-    // gamma = psychrometric constant (kPa/K)
-    // Rn-G = available energy (W/m^2)
-    // lambda = latent heat of vaporization (J/kg)
-    
-    double pet_rate_m_per_s = alpha_pt * 
-                              (delta / (delta + PSYCHROMETRIC_CONSTANT)) * 
-                              (available_energy / LATENT_HEAT_VAPORIZATION) / LIQUID_WATER_DENSITY;
-    
-    // Convert from m/s to m per timestep
-    double calc_pet_m_per_timestep = pet_rate_m_per_s * dt_seconds;
-    
-    // Sanity check: limit to reasonable values (max ~10mm/day = 0.01m/day)
-    double max_daily_pet_m_per_day = 0.01; // 10mm/day in meters
-    double hours_sunshine_per_day =12.0;   // assumed
-    double max_pet_m_per_h = max_daily_pet_m_per_day / hours_sunshine_per_day;
-    double max_pet_this_timestep = max_pet_m_per_h;
-    
-    if (calc_pet_m_per_timestep > max_pet_this_timestep) {
-        calc_pet_m_per_timestep = max_pet_this_timestep;
+
+    temperature_state = &state->pet_temperature_state;
+
+    air_temperature_k = forcing->TMP_2maboveground;
+    if (!isfinite(air_temperature_k) ||
+        !isfinite(forcing->DSWRF_surface)) {
+        return 0.0;
     }
-    
-    return calc_pet_m_per_timestep;
+
+    if (!temperature_state->initialized) return 0.0;
+
+    downwelling_longwave_w_per_m2 =
+        dlwrf_surface_is_valid(forcing->DLWRF_surface)
+            ? forcing->DLWRF_surface
+            : atmospheric_emissivity * stefan_boltzmann *
+                  pow(air_temperature_k, 4.0);
+
+    outgoing_longwave_w_per_m2 =
+        surface_emissivity * stefan_boltzmann *
+        pow(temperature_state->skin_temperature_k, 4.0);
+
+    net_radiation_w_per_m2 =
+        (1.0 - surface_albedo) * forcing->DSWRF_surface +
+        surface_emissivity * downwelling_longwave_w_per_m2 -
+        outgoing_longwave_w_per_m2;
+
+    ground_heat_flux_w_per_m2 =
+        soil_thermal_conductivity_w_per_m_k *
+        (temperature_state->skin_temperature_k -
+         temperature_state->upper_soil_temperature_k) /
+        conduction_distance_m;
+
+    available_energy_w_per_m2 =
+        net_radiation_w_per_m2 - ground_heat_flux_w_per_m2;
+
+    if (available_energy_w_per_m2 <= 0.0) return 0.0;
+
+    air_temperature_c = air_temperature_k - 273.15;
+    saturation_vapor_pressure_kpa =
+        0.6108 * exp(
+            (17.27 * air_temperature_c) /
+            (air_temperature_c + 237.3));
+
+    saturation_vapor_pressure_slope_kpa_per_k =
+        4098.0 * saturation_vapor_pressure_kpa /
+        pow(air_temperature_c + 237.3, 2.0);
+
+    pet_rate_m_per_s =
+        alpha_pt *
+        (saturation_vapor_pressure_slope_kpa_per_k /
+         (saturation_vapor_pressure_slope_kpa_per_k +
+          psychrometric_constant_kpa_per_k)) *
+        (available_energy_w_per_m2 /
+         latent_heat_vaporization_j_per_kg) /
+        liquid_water_density_kg_per_m3;
+
+    pet_m_per_timestep = pet_rate_m_per_s * (double)dt_seconds;
+
+    maximum_pet_m_per_timestep =
+        0.01 * ((double)dt_seconds / 43200.0);
+
+    if (pet_m_per_timestep > maximum_pet_m_per_timestep) {
+        pet_m_per_timestep = maximum_pet_m_per_timestep;
+    }
+
+    if (pet_m_per_timestep < 0.0 || !isfinite(pet_m_per_timestep)) {
+        return 0.0;
+    }
+
+    return pet_m_per_timestep;
 }
