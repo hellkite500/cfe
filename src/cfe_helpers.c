@@ -454,6 +454,65 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
 
 
 
+static int update_catchment_land_cover_fractions(cfe_parameters_struct* parameters)
+{
+    double land_cover_fraction_sum;
+
+    if (parameters == NULL) {
+        fprintf(stderr,
+                "ERROR: NULL parameters passed to "
+                "update_catchment_land_cover_fractions().\n");
+        return -1;
+    }
+
+    if (parameters->catchment_impervious_fraction < 0.0 ||
+        parameters->catchment_impervious_fraction > 1.0) {
+        fprintf(stderr,
+                "ERROR: catchment_impervious_fraction must be between "
+                "0 and 1; got %.17g\n",
+                parameters->catchment_impervious_fraction);
+        return -1;
+    }
+
+    if (parameters->catchment_forested_fraction < 0.0 ||
+        parameters->catchment_forested_fraction > 1.0) {
+        fprintf(stderr,
+                "ERROR: catchment_forested_fraction must be between "
+                "0 and 1; got %.17g\n",
+                parameters->catchment_forested_fraction);
+        return -1;
+    }
+
+    parameters->catchment_bare_soil_fraction = 0.0;
+
+    land_cover_fraction_sum =
+        parameters->catchment_impervious_fraction +
+        parameters->catchment_forested_fraction;
+
+    if (land_cover_fraction_sum <= 1.0) {
+        parameters->catchment_bare_soil_fraction =
+            1.0 - land_cover_fraction_sum;
+    }
+    else {
+        fprintf(stderr,
+                "WARNING: catchment_forested_fraction (%.6f) + "
+                "catchment_impervious_fraction (%.6f) exceeds 1.0. "
+                "Reducing forested fraction to %.6f and setting "
+                "bare_soil_fraction to 0.0.\n",
+                parameters->catchment_forested_fraction,
+                parameters->catchment_impervious_fraction,
+                1.0 -
+                    parameters->catchment_impervious_fraction);
+
+        parameters->catchment_forested_fraction =
+            1.0 - parameters->catchment_impervious_fraction;
+
+        parameters->catchment_bare_soil_fraction = 0.0;
+    }
+
+    return 0;
+}
+
 // ---------------- Mapper ----------------
 // This function maps values from the cfe config struct (cfg) into stateless cfe arrays
 // Map config structt to CFE model structs with final unit conversions
@@ -514,6 +573,7 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     o->enable_ET_Priestley_Taylor      = (cfg->et_alpha_pt > 1.0e-03) ? TRUE : FALSE;   // iff alpha_pt not zero or tiny.
     o->enable_freeze_thaw              = cfg->control_soil_simulate_freeze_thaw_true_false;
     o->simulate_discrete_soil_moisture = cfg->control_soil_simulate_discrete_soil_moisture_true_false;
+    o->simulate_soil_evaporation       = cfg->control_soil_simulate_soil_evaporation;
     o->deepest_root_zone_disc          = cfg->control_ET_deepest_root_zone_discretization;
     o->use_soil_lookup_table           = (cfg->control_soil_use_lookup_table_num_points > 0) ? TRUE : FALSE;
     if(o->verbosity > 1) printf("DEBUG: Mapped use_soil_lookup_table = %d\n", o->use_soil_lookup_table);    
@@ -570,6 +630,22 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     p->xj_tension_inflection_point               = cfg->soil_Xinanjiang_tension_water_inflection_point;
     p->xj_tension_b                            = cfg->soil_Xinanjiang_tension_water_soil_moist_distrib_exponent;
     p->xj_free_b                               = cfg->soil_Xinanjiang_free_water_soil_moist_distrib_exponent;
+
+    // Land-cover fractions
+    p->catchment_impervious_fraction = cfg->cat_impervious_fraction;
+
+    if (o->simulate_soil_evaporation == TRUE) {
+        p->catchment_forested_fraction = cfg->catchment_forested_fraction;
+    }
+    else {
+        p->catchment_forested_fraction = 1.0;
+    }
+
+    if (update_catchment_land_cover_fractions(p) != 0) {
+        return -1;
+    }
+
+    p->bare_soil_rsurf_exp = CFE_BARE_SOIL_RSURF_EXP;
 
     // Groundwater
     p->gw_max_storage_m                        = cfg->gw_reservoir_max_storage_m;
@@ -1090,8 +1166,16 @@ int cfe_step(const cfe_parameters_struct* p,
 
     // 6) ET structure from forcing
     evapotranspiration_structure et = {0};
-    et.potential_et_m_per_timestep = forcing->et_potential_m;
-    et.potential_et_m_per_s = forcing->et_potential_m / ((double)o->time_step_seconds);
+    double forest_pet_m = forcing->forest_pet_m;
+
+    if (forest_pet_m == 0.0 && forcing->bare_soil_aet_m == 0.0 &&
+        forcing->et_potential_m > 0.0) {
+        forest_pet_m = forcing->et_potential_m;
+    }
+
+    et.potential_et_m_per_timestep = forest_pet_m;
+    et.potential_et_m_per_s = forest_pet_m / ((double)o->time_step_seconds);
+    et.actual_bare_soil_evaporation_m_per_timestep = forcing->bare_soil_aet_m;
 
 
     // 7) Outputs and flux pointers expected by kernel

@@ -57,6 +57,7 @@ set(CFE_CORE_SOURCES
     ./src/discrete_soil_moisture_stateless.c
     ./src/cfe_pet_priestley_taylor.c
     ./src/cfe_soil_skin_temperature.c
+    ./src/calculate_bare_soil_evap.c
 )
 
 if (WIN32)

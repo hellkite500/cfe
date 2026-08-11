@@ -30,6 +30,7 @@
 #include "cfe_driver_utils.h"
 #include "cfe_pet_priestley_taylor.h"
 #include "cfe_soil_skin_temperature.h"
+#include "calculate_bare_soil_evap.h"
 
 #define TIME_STRING_LENGTH 64
 
@@ -218,15 +219,46 @@ int main(int argc, char* argv[])
             memset(&forcing, 0, sizeof(forcing));
         }
 
-        // 12b. Calculate PET internally if P-T is enabled
-        if(options.enable_ET_Priestley_Taylor == TRUE) {
+        // 12b. Update skin temperature and calculate PET
+        if (options.enable_ET_Priestley_Taylor == TRUE ||
+            options.simulate_soil_evaporation == TRUE) {
             update_soil_skin_temperature_state(
                 &forcing, options.time_step_seconds,
                 forcing.day_of_year, &state);
+        }
 
+        if (options.enable_ET_Priestley_Taylor == TRUE) {
             forcing.et_potential_m = calculate_pet_priestley_taylor(
                 &forcing, options.time_step_seconds,
                 params.alpha_pt, &state);
+        }
+
+        forcing.forest_pet_m = forcing.et_potential_m;
+        forcing.bare_soil_aet_m = 0.0;
+
+        if (options.simulate_discrete_soil_moisture == TRUE &&
+            options.simulate_soil_evaporation == TRUE) {
+
+            double local_bare_soil_evaporation_m;
+
+            forcing.forest_pet_m =
+                forcing.et_potential_m *
+                params.catchment_forested_fraction;
+
+            local_bare_soil_evaporation_m =
+                calculate_bare_soil_evap(
+                    &forcing,
+                    &params,
+                    &state,
+                    options.time_step_seconds,
+                    CFE_AERODYNAMIC_RESISTANCE_S_PER_M,
+                    params.bare_soil_rsurf_exp,
+                    NULL,
+                    NULL);
+
+            forcing.bare_soil_aet_m =
+                local_bare_soil_evaporation_m *
+                params.catchment_bare_soil_fraction;
         }
 
         // 12c. Run CFE model step

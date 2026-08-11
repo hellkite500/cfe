@@ -28,13 +28,6 @@ void initialize_soil_temperature_state(
     temperature_state->initialized = 1;
 }
 
-static double clamp_double(double value, double lower, double upper)
-{
-    if (value < lower) return lower;
-    if (value > upper) return upper;
-    return value;
-}
-
 /*
  * True if dlwrf_surface_w_per_m2 looks like a genuine, physically
  * plausible observed/modeled value rather than the uninitialized
@@ -69,7 +62,7 @@ static void update_annual_mean_and_upper_soil_temperature(
         temperature_state->air_temperature_time_integral_k_s /
         temperature_state->accumulated_time_s;
 
-    forcing_weight = clamp_double(
+    forcing_weight = CLAMP(
         temperature_state->accumulated_time_s / seconds_per_year,
         0.0,
         1.0);
@@ -177,7 +170,7 @@ static void update_soil_skin_temperature(
          forcing_term_w_per_m2) /
         denominator_w_per_m2_k;
 
-    temperature_state->skin_temperature_k = clamp_double(
+    temperature_state->skin_temperature_k = CLAMP(
         updated_skin_temperature_k,
         223.15,
         343.15);

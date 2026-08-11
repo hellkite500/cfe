@@ -336,7 +336,6 @@ extern void cfe(
       double excess = infiltration_depth_m - soil_reservoir_storage_deficit_m;
       flux_surface_runoff_input_to_surface_routing_m += excess;
       volbal_struct->vol_direct_runoff += excess;
-      volbal_struct->vol_runoff += excess;
       infiltration_depth_m = soil_reservoir_storage_deficit_m;
       soil_reservoir_struct->storage_m = soil_reservoir_struct->storage_max_m;
       soil_reservoir_storage_deficit_m = 0.0;
@@ -386,7 +385,8 @@ extern void cfe(
           soil_state_out,
           soil_geometry,
           infiltration_depth_m,
-          evap_struct->actual_et_from_soil_m_per_timestep,
+          evap_struct->actual_et_from_soil_m_per_timestep +
+              evap_struct->actual_bare_soil_evaporation_m_per_timestep,
           1.0e-9 // tolerance in meters  1.0e-9 is a good value.  Set to 1.0e-19 to print all the time
       );
     }
@@ -401,6 +401,12 @@ extern void cfe(
 
     // Add this excess to surface routing input
     flux_surface_runoff_input_to_surface_routing_m += DSBM_infiltration_excess_runoff_m;
+
+    // The full pre-DSBM infiltration_depth_m estimate gets added to vol_infilt below
+    // even though part of it never entered the soil column - it was just counted a
+    // second time as runoff via DSBM_infiltration_excess_runoff_m above.
+    infiltration_depth_m -= DSBM_infiltration_excess_runoff_m;
+    if (infiltration_depth_m < 0.0) infiltration_depth_m = 0.0;
 
     // Update discrete soil storage array ffor persistence
     for (int i = 0; i < NDISC; i++)
@@ -422,13 +428,22 @@ extern void cfe(
     soil_reservoir_storage_deficit_m = soil_state_out->storage_deficit_m; // If needed elsewhere
   }
   // MOVED THIS TO AFTER DSBM CALL______________________________________
-  volbal_struct->vol_et_from_soil = volbal_struct->vol_et_from_soil + evap_struct->actual_et_from_soil_m_per_timestep;
-  volbal_struct->vol_et_to_atm = volbal_struct->vol_et_to_atm + evap_struct->actual_et_from_soil_m_per_timestep;
-  volbal_struct->volout = volbal_struct->volout + evap_struct->actual_et_from_soil_m_per_timestep;
-
+  {
+    double total_soil_et_m =
+        evap_struct->actual_et_from_soil_m_per_timestep +
+        evap_struct->actual_bare_soil_evaporation_m_per_timestep;
+    volbal_struct->vol_forest_aet +=
+        evap_struct->actual_et_from_soil_m_per_timestep;
+    volbal_struct->vol_bare_soil_evaporation +=
+        evap_struct->actual_bare_soil_evaporation_m_per_timestep;
+    volbal_struct->vol_et_from_soil += total_soil_et_m;
+    volbal_struct->vol_et_to_atm   += total_soil_et_m;
+    volbal_struct->volout          += total_soil_et_m;
+  }
 
   evap_struct->actual_et_m_per_timestep = evap_struct->actual_et_from_rain_m_per_timestep +
-                                          evap_struct->actual_et_from_soil_m_per_timestep;
+                                          evap_struct->actual_et_from_soil_m_per_timestep +
+                                          evap_struct->actual_bare_soil_evaporation_m_per_timestep;
 
   //-- NEW DSBM
   // CONSOLIDATED VOLUME BALANCE - SAME LOGIC FOR BOTH MODELS

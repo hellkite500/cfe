@@ -106,7 +106,9 @@ typedef struct CFE_CONFIG
     char   control_input_forcing_filename[PATH_FILENAME_STRING_LENGTH];
     int    control_soil_simulate_freeze_thaw_true_false;
     int    control_soil_simulate_discrete_soil_moisture_true_false;  // New field ffor version 3
+    int    control_soil_simulate_soil_evaporation;
     int    control_ET_deepest_root_zone_discretization;
+    double catchment_forested_fraction;
     int    control_soil_use_lookup_table_num_points;
     char   partitioning_scheme_name[OPTION_STRING_LENGTH];
     char   surface_routing_scheme_name[OPTION_STRING_LENGTH];

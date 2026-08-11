@@ -184,8 +184,25 @@ int DSBM_step_one_hour_stateless(
         temp_soil_state.theta_in[i] = theta[i];
     }
 
-    // Call ET calculation once ffor the full timestep, before substep loop, remove water from wettest disc
-    et_from_soil_discrete(control, geom, params, &temp_soil_state, evap_struct); //calc. AET for this timestep
+    /*
+     * Remove area-weighted bare-soil evaporation from disc 1, then apply
+     * forest/root-zone AET using the existing wettest-root-disc method.
+     * The externally calculated bare-soil flux is capped again here so the
+     * state update cannot cross the wilting-point water content.
+     */
+    double requested_bare_aet_m =
+        evap_struct->actual_bare_soil_evaporation_m_per_timestep;
+    double available_top_water_m =
+        fmax(temp_soil_state.theta_in[0] - params->theta_wp, 0.0) *
+        geom->dz_m[0];
+    double actual_bare_aet_m =
+        fmin(fmax(requested_bare_aet_m, 0.0), available_top_water_m);
+
+    temp_soil_state.theta_in[0] -= actual_bare_aet_m / geom->dz_m[0];
+    evap_struct->actual_bare_soil_evaporation_m_per_timestep =
+        actual_bare_aet_m;
+
+    et_from_soil_discrete(control, geom, params, &temp_soil_state, evap_struct);
 
     // Update theta array with post-ET values
     for (int i = 0; i < NDISC; i++) {

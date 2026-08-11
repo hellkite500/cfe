@@ -198,6 +198,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
     PARSER_ARRAY_COUNTS array_counts = {0};
     
     memset(config, 0, sizeof(CFE_CONFIG));
+    config->catchment_forested_fraction = 1.0;
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {  // or whatever max for subsurface
         config->subsurface_routing_nash_cascade_init_storage_m[i] = 0.0;
     }
@@ -408,6 +409,12 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         }
         else if (string_compare_ignore_case(keyword, "control_ET_deepest_root_zone_discretization") == 0) {
             config->control_ET_deepest_root_zone_discretization = atoi(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "control_soil_simulate_soil_evaporation") == 0) {
+            config->control_soil_simulate_soil_evaporation = parse_boolean(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "catchment_forested_fraction_0-1") == 0) {
+            config->catchment_forested_fraction = atof(value_part);
         }
         else if (string_compare_ignore_case(keyword, "partitioning_scheme_name") == 0) {
             // Convert to lowercase for consistent comparison

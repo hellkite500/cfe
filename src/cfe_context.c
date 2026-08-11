@@ -17,6 +17,7 @@
 #include "cfe_driver_utils.h"  // needed for cfe_initialize_volume_balance()
 #include "cfe_soil_skin_temperature.h"
 #include "cfe_pet_priestley_taylor.h"
+#include "calculate_bare_soil_evap.h"
 
 // This file contains the initial context setup to create a BMI model definition.  FLO 9/2025 with alot of help from claude.ai
 
@@ -27,6 +28,8 @@ int cfe_context_create_from_config(const char* cfg_path, CFE_Model_Context** out
 
     CFE_Model_Context* ctx = (CFE_Model_Context*)calloc(1, sizeof(CFE_Model_Context));
     if (ctx == NULL) return -1;
+
+    ctx->forcing.DLWRF_surface = CFE_DLWRF_SURFACE_UNINITIALIZED_SENTINEL;
 
     double version = read_cfe_config_version(cfg_path);
     if (fabs(version) < 1.0e-04) {
@@ -111,19 +114,50 @@ int cfe_context_update(CFE_Model_Context* ctx)
     
     double dt = (double)ctx->options.time_step_seconds;
 
-    if (ctx->options.enable_ET_Priestley_Taylor == TRUE) {
+    if (ctx->options.enable_ET_Priestley_Taylor == TRUE ||
+        ctx->options.simulate_soil_evaporation == TRUE) {
         update_soil_skin_temperature_state(
             &ctx->forcing,
             ctx->options.time_step_seconds,
             ctx->forcing.day_of_year,
             &ctx->state);
+    }
 
+    if (ctx->options.enable_ET_Priestley_Taylor == TRUE) {
         ctx->forcing.et_potential_m =
             calculate_pet_priestley_taylor(
                 &ctx->forcing,
                 ctx->options.time_step_seconds,
                 ctx->parameters.alpha_pt,
                 &ctx->state);
+    }
+
+    ctx->forcing.forest_pet_m = ctx->forcing.et_potential_m;
+    ctx->forcing.bare_soil_aet_m = 0.0;
+
+    if (ctx->options.simulate_discrete_soil_moisture == TRUE &&
+        ctx->options.simulate_soil_evaporation == TRUE) {
+
+        double local_bare_soil_evaporation_m;
+
+        ctx->forcing.forest_pet_m =
+            ctx->forcing.et_potential_m *
+            ctx->parameters.catchment_forested_fraction;
+
+        local_bare_soil_evaporation_m =
+            calculate_bare_soil_evap(
+                &ctx->forcing,
+                &ctx->parameters,
+                &ctx->state,
+                ctx->options.time_step_seconds,
+                CFE_AERODYNAMIC_RESISTANCE_S_PER_M,
+                ctx->parameters.bare_soil_rsurf_exp,
+                NULL,
+                NULL);
+
+        ctx->forcing.bare_soil_aet_m =
+            local_bare_soil_evaporation_m *
+            ctx->parameters.catchment_bare_soil_fraction;
     }
 
     if (cfe_step(&ctx->parameters, &ctx->options, &ctx->state, &ctx->forcing, dt,

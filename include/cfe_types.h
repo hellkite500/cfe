@@ -21,10 +21,14 @@
 #include "cfe_config.h"
 
 
+#include <math.h>
+
 #ifndef TRUE
 #define TRUE 1
 #define FALSE 0
 #endif
+
+#define CLAMP(val, lo, hi) fmin(fmax((val), (lo)), (hi))
 
 // used in parsing command line args
 typedef struct {
@@ -171,6 +175,7 @@ typedef struct {
     int enable_ET_Priestley_Taylor;
     int enable_freeze_thaw;
     int simulate_discrete_soil_moisture;
+    int simulate_soil_evaporation;
     int deepest_root_zone_disc;       // 1..NDISC; used by DSBM ET extraction
     int use_soil_lookup_table;
     char input_forcing_filename[PATH_FILENAME_STRING_LENGTH];
@@ -243,7 +248,13 @@ typedef struct {
     double nash_subsurface_K_per_h;
     double nash_subsurface_init_storage_m[2];
 
-    /* Optional extras for surface Nash */
+    /* Land-cover fractions */
+    double catchment_forested_fraction;
+    double catchment_impervious_fraction;
+    double catchment_bare_soil_fraction;
+
+    /* Bare-soil evaporation */
+    double bare_soil_rsurf_exp;
 
 } cfe_parameters_struct;
 
@@ -320,6 +331,12 @@ typedef struct {
  */
 #define CFE_AERODYNAMIC_RESISTANCE_S_PER_M (100.0)
 
+/*
+ * Noah-MP RSURF_EXP: Sakaguchi-Zeng dry-layer shape exponent for
+ * bare-soil surface resistance.  Common default is 5.0.
+ */
+#define CFE_BARE_SOIL_RSURF_EXP (5.0)
+
 /* Forcing: inputs per step */
 //############
 typedef struct {
@@ -335,6 +352,8 @@ typedef struct {
     double VGRD_10maboveground;   // m/s
     double precip_rate;           // m/s
     double ice_fraction;          // 0-1, from external SFT module when coupled
+    double forest_pet_m;          // forest-fraction PET for root-zone AET pathway
+    double bare_soil_aet_m;       // area-weighted bare-soil evaporation [m/timestep]
     int day_of_year;              // 1 through 366
 } cfe_forcing_struct;
 
@@ -384,6 +403,8 @@ typedef struct {
     double vol_soil_to_gw      ;
     double vol_soil_end        ;
     double vol_et_from_soil    ;
+    double vol_forest_aet      ;
+    double vol_bare_soil_evaporation;
     double vol_et_from_rain    ;
     double vol_et_to_atm       ;
     double volin               ;
