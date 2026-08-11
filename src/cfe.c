@@ -358,8 +358,6 @@ extern void cfe(
 
     TimestepSoilVolbal soil_volbal = {0}; // initializes all elements to 0
 
-    double available_gw_storage_m = gw_reservoir_struct->storage_max_m - gw_reservoir_struct->storage_m;
-
     // soil_state_in->total_storage_m  is initialized at run time in initialize()
 
     soil_state_in->storage_deficit_m = (NWM_soil_params_struct.smcmax * NWM_soil_params_struct.D) -
@@ -367,7 +365,6 @@ extern void cfe(
 
     // call discrete soil balance module to solve soil moistures in 0.1, 0.3, 0.6 and 1.0 m discs.
     DSBM_step_one_hour_stateless(
-        available_gw_storage_m,
         soil_control,
         soil_geometry,
         soil_parameters,

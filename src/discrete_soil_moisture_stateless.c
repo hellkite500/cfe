@@ -127,7 +127,6 @@ static int choose_n_substeps_generic(double dt_hours,
 
 //##############################
 int DSBM_step_one_hour_stateless(
-    double                   available_gw_storage_m,
     const SoilControl        *control,
     const SoilGeometry       *geom,
     const SoilParameters     *params,
@@ -142,8 +141,6 @@ int DSBM_step_one_hour_stateless(
 {
     (void)debug_fptr;
 
-    available_gw_storage_m = fmax(0.0, available_gw_storage_m);
-    
     // ---- local working state + zero outputs in one pass ----------------------
     double theta[NDISC];
     for (int i = 0; i < NDISC; i++) {
@@ -198,11 +195,13 @@ int DSBM_step_one_hour_stateless(
     // Track ET removal by disc for flux accounting
     double et_removed = 0.0;
     for (int i = 0; i < NDISC; i++) {
-        et_removed += (state_in->theta_in[i] - theta[i]) * geom->dz_m[i]; //FIXME- could just return value...
-        flux->AET_by_disc_m[i] = et_removed;
+        double et_removed_from_disc_m =
+            (state_in->theta_in[i] - theta[i]) * geom->dz_m[i];
+        et_removed += et_removed_from_disc_m;
+        flux->AET_by_disc_m[i] = et_removed_from_disc_m;
     }
 
-    volbal->AET_m = evap_struct->actual_et_from_soil_m_per_timestep;  // was updated in et_from_soil_discrete()
+    volbal->AET_m = et_removed;
     //-- END NEW
 
     // Calculate initial fluxes at disc interfaces
@@ -282,13 +281,10 @@ int DSBM_step_one_hour_stateless(
             store_cap[d] = s;
         }
 
-       // Modified to consider the situation where the available storage in the groundwater reservoior
-       // is insufficient to accept all the percolation this time step.
-       // Key changes marked with
-
-        //  bottom potential percolation (K(theta4) * limiter) | GW storage limit
-        //  This is precisely how they doo it in Noah-MP
-        
+        // bottom potential percolation (K(theta_bottom) * limiter)
+        // Not limited by GW reservoir storage: the exponential/nonlinear
+        // reservoir has no true capacity ceiling — storage_max_m is a
+        // curve-shape parameter, not a hard bucket size.
         double bottom_potential = 0.0;
         if (theta[ndisc-1] > params->theta_fc) {
             double K_now = K_from_theta(theta[ndisc-1], params->theta_sat,
@@ -296,15 +292,6 @@ int DSBM_step_one_hour_stateless(
             double percolation_rate = params->perc_limiter_0_to_1 * K_now;     // m/h
             if (percolation_rate > 0.0) {
                 bottom_potential = percolation_rate * dt_sub;
-                
-                // Limited by available groundwater storage
-                // More conservative: limit each substep to remaining storage / remaining substeps
-                double remaining_gw_storage = available_gw_storage_m - flux->percolation_to_gw_m;
-                double remaining_gw_storage_sub = remaining_gw_storage / (double)(n_substeps - substep);
-                
-                if (remaining_gw_storage_sub < bottom_potential) {
-                    bottom_potential = fmax(0.0, remaining_gw_storage_sub);
-                }
             }
         }
 
@@ -346,7 +333,7 @@ int DSBM_step_one_hour_stateless(
 
                 if (V > max_out) V = max_out;
                 if (V > donor_avail) V = donor_avail;
-                if (V > recv_space + chain_pass) V = recv_space + chain_pass;
+                if (V > recv_space) V = recv_space;
                 if (V < 0.0) V = 0.0;
 
                 theta[i]   -= V / geom->dz_m[i];
@@ -380,21 +367,14 @@ int DSBM_step_one_hour_stateless(
             flux->interface_vol_m[i] += V;
         }
 
-        // Apply bottom percolation 
+        // Apply bottom percolation
         double perc_vol = 0.0;
         if (theta[ndisc-1] > params->theta_fc && bottom_potential > 0.0) {
             double avail = (theta[ndisc-1] - params->theta_fc) * geom->dz_m[ndisc-1];
             if (avail < 0.0) avail = 0.0;
 
-            perc_vol = bottom_potential;  // This is already GW-storage-limited
+            perc_vol = bottom_potential;
             if (perc_vol > avail) perc_vol = avail;
-
-            // Additional safety check against total GW storage
-            double total_perc_after = flux->percolation_to_gw_m + perc_vol;
-            if (total_perc_after > available_gw_storage_m) {
-                perc_vol = available_gw_storage_m - flux->percolation_to_gw_m;
-                perc_vol = fmax(0.0, perc_vol);
-            }
 
             if (perc_vol > 0.0) {
                 theta[ndisc-1] -= perc_vol / geom->dz_m[ndisc-1];

@@ -30,7 +30,6 @@ void et_from_soil_discrete
     );
     
 int DSBM_step_one_hour_stateless(
-    double                   available_gw_storage_m,
     const SoilControl        *ctrl,
     const SoilGeometry       *geom,
     const SoilParameters     *par,

@@ -41,7 +41,7 @@ double calculate_pet_priestley_taylor(const cfe_forcing_struct* forcing, int dt_
     // const double ALPHA_PT = 1.26;          // Priestley-Taylor coefficient (dimensionless) from config file.
     const double STEFAN_BOLTZMANN = 5.67e-8; // Stefan-Boltzmann constant (W/m^2/K^4)
     const double LATENT_HEAT_VAPORIZATION = 2.45e6; // J/kg at 20C
-    const double PSYCHROMETRIC_CONSTANT = 0.665;    // kPa/K (approximate at sea level)
+    const double PSYCHROMETRIC_CONSTANT = 0.0665;   // kPa/K (approximate at sea level)
     const double LIQUID_WATER_DENSITY = 998.0;
     
     // Extract values from forcing structure

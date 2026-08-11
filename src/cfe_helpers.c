@@ -569,8 +569,15 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
                 giuh_sum += p->giuh_ordinates[i];
             }
             if(fabs(giuh_sum - 1.0) > 1.0e-6) {
-                fprintf(stderr, "WARNING: Sum of %d GIUH ordinates = %.6f, sum should equal 1.0\n", 
+                fprintf(stderr, "WARNING: Sum of %d GIUH ordinates = %.6f, sum should equal 1.0 - normalizing\n",
                          p->giuh_num_ordinates, giuh_sum);
+                if (giuh_sum > 0.0) {
+                    double lambda = 1.0 / giuh_sum;
+                    for (int i = 0; i < p->giuh_num_ordinates; i++) {
+                        p->giuh_ordinates[i] *= lambda;
+                    }
+                    giuh_sum = 1.0;
+                }
             }
             for (int i = 0; i < p->giuh_num_ordinates; i++) {  // copy the input convolution queue too
                 p->giuh_init_queue_m[i] = cfg->surface_routing_init_giuh_convolution_queue_m[i];
