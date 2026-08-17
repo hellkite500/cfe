@@ -198,7 +198,7 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
     PARSER_ARRAY_COUNTS array_counts = {0};
     
     memset(config, 0, sizeof(CFE_CONFIG));
-    config->catchment_forested_fraction = 1.0;
+    config->catchment_vegetated_fraction = 1.0;
     for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {  // or whatever max for subsurface
         config->subsurface_routing_nash_cascade_init_storage_m[i] = 0.0;
     }
@@ -413,8 +413,9 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         else if (string_compare_ignore_case(keyword, "control_soil_simulate_soil_evaporation") == 0) {
             config->control_soil_simulate_soil_evaporation = parse_boolean(value_part);
         }
-        else if (string_compare_ignore_case(keyword, "catchment_forested_fraction_0-1") == 0) {
-            config->catchment_forested_fraction = atof(value_part);
+        else if (string_compare_ignore_case(keyword, "catchment_vegetated_fraction_0-1") == 0 ||
+                 string_compare_ignore_case(keyword, "catchment_forested_fraction_0-1") == 0) {
+            config->catchment_vegetated_fraction = atof(value_part);
         }
         else if (string_compare_ignore_case(keyword, "partitioning_scheme_name") == 0) {
             // Convert to lowercase for consistent comparison
@@ -463,6 +464,24 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         }
         else if (string_compare_ignore_case(keyword, "partitioning_Xinanjiang_free_water_soil_moist_distrib_exponent") == 0) {
             config->soil_Xinanjiang_free_water_soil_moist_distrib_exponent = atof(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "state_skin_temperature_k") == 0) {
+            config->state_skin_temperature_k = atof(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "state_upper_soil_temperature_k") == 0) {
+            config->state_upper_soil_temperature_k = atof(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "state_estimated_annual_air_temperature_k") == 0) {
+            config->state_estimated_annual_air_temperature_k = atof(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "state_air_temperature_time_integral_k_s") == 0) {
+            config->state_air_temperature_time_integral_k_s = atof(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "state_accumulated_time_s") == 0) {
+            config->state_accumulated_time_s = atof(value_part);
+        }
+        else if (string_compare_ignore_case(keyword, "state_pet_initialized") == 0) {
+            config->state_pet_initialized = atoi(value_part);
         }
         else if (string_compare_ignore_case(keyword, "output_status_warnings_filename") == 0) {
             safe_strcpy(config->output_status_warnings_filename, sizeof(config->output_status_warnings_filename), value_part);
@@ -529,6 +548,16 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
     if (config->version < 1.0e-04)
         config->version = 3.0;
 
+    // Apply default output_value_format if the config file did not specify one.
+    // validate_and_fix_output_format() only runs when the "output_value_format"
+    // keyword is present but malformed; if the keyword is absent entirely, this
+    // field is left as an empty string by the memset() at the top of the parser.
+    // An empty format string passed to fprintf() silently prints nothing for
+    // every numeric field in q.out/Q.out/fluxes.out/storage.out/thetas.out, so
+    // fill in the same default ("%.8f") used by validate_and_fix_output_format().
+    if (strlen(config->output_value_format) == 0) {
+        snprintf(config->output_value_format, sizeof(config->output_value_format), "%%.8f");
+    }
     return 0;
 }
 
@@ -727,6 +756,7 @@ int validate_time_format(const char* time_format) {
     
     if (string_compare_ignore_case(time_format, "timestep") == 0 ||
         string_compare_ignore_case(time_format, "datetime") == 0 ||
+        string_compare_ignore_case(time_format, "datetime_dash") == 0 ||
         string_compare_ignore_case(time_format, "juliandate") == 0) {
         return 1;  // Valid
     }

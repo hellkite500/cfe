@@ -474,12 +474,12 @@ static int update_catchment_land_cover_fractions(cfe_parameters_struct* paramete
         return -1;
     }
 
-    if (parameters->catchment_forested_fraction < 0.0 ||
-        parameters->catchment_forested_fraction > 1.0) {
+    if (parameters->catchment_vegetated_fraction < 0.0 ||
+        parameters->catchment_vegetated_fraction > 1.0) {
         fprintf(stderr,
-                "ERROR: catchment_forested_fraction must be between "
+                "ERROR: catchment_vegetated_fraction must be between "
                 "0 and 1; got %.17g\n",
-                parameters->catchment_forested_fraction);
+                parameters->catchment_vegetated_fraction);
         return -1;
     }
 
@@ -487,7 +487,7 @@ static int update_catchment_land_cover_fractions(cfe_parameters_struct* paramete
 
     land_cover_fraction_sum =
         parameters->catchment_impervious_fraction +
-        parameters->catchment_forested_fraction;
+        parameters->catchment_vegetated_fraction;
 
     if (land_cover_fraction_sum <= 1.0) {
         parameters->catchment_bare_soil_fraction =
@@ -495,16 +495,16 @@ static int update_catchment_land_cover_fractions(cfe_parameters_struct* paramete
     }
     else {
         fprintf(stderr,
-                "WARNING: catchment_forested_fraction (%.6f) + "
+                "WARNING: catchment_vegetated_fraction (%.6f) + "
                 "catchment_impervious_fraction (%.6f) exceeds 1.0. "
-                "Reducing forested fraction to %.6f and setting "
+                "Reducing vegetated fraction to %.6f and setting "
                 "bare_soil_fraction to 0.0.\n",
-                parameters->catchment_forested_fraction,
+                parameters->catchment_vegetated_fraction,
                 parameters->catchment_impervious_fraction,
                 1.0 -
                     parameters->catchment_impervious_fraction);
 
-        parameters->catchment_forested_fraction =
+        parameters->catchment_vegetated_fraction =
             1.0 - parameters->catchment_impervious_fraction;
 
         parameters->catchment_bare_soil_fraction = 0.0;
@@ -635,10 +635,10 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     p->catchment_impervious_fraction = cfg->cat_impervious_fraction;
 
     if (o->simulate_soil_evaporation == TRUE) {
-        p->catchment_forested_fraction = cfg->catchment_forested_fraction;
+        p->catchment_vegetated_fraction = cfg->catchment_vegetated_fraction;
     }
     else {
-        p->catchment_forested_fraction = 1.0;
+        p->catchment_vegetated_fraction = 1.0;
     }
 
     if (update_catchment_land_cover_fractions(p) != 0) {
@@ -759,8 +759,8 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
         strncpy(o->output_time_standard_format, cfg->output_time_standard_format, sizeof(o->output_time_standard_format) - 1);
         o->output_time_standard_format[sizeof(o->output_time_standard_format) - 1] = '\0';
     } else {
-        if(o->verbosity > 0) printf("Warning: Invalid time format '%s', using 'timestep'\n", cfg->output_time_standard_format);
-        strncpy(o->output_time_standard_format, "timestep", sizeof(o->output_time_standard_format) - 1);
+        if(o->verbosity > 0) printf("Warning: Invalid time format '%s', using 'datetime'\n", cfg->output_time_standard_format);
+        strncpy(o->output_time_standard_format, "datetime", sizeof(o->output_time_standard_format) - 1);
         o->output_time_standard_format[sizeof(o->output_time_standard_format) - 1] = '\0';
     }
 
@@ -1150,7 +1150,7 @@ int cfe_step(const cfe_parameters_struct* p,
     rp.a_Xinanjiang_inflection_point_parameter      = p->xj_tension_inflection_point;
     rp.b_Xinanjiang_shape_parameter                 = p->xj_tension_b;
     rp.x_Xinanjiang_shape_parameter                 = p->xj_free_b;
-    rp.urban_decimal_fraction                       = 0.0;
+    rp.urban_decimal_fraction                       = p->catchment_impervious_fraction;
     rp.ice_content_threshold                        = p->soil_ice_imperv_threshold;
 
     // 5) Subsurface Nash parameters (use per hour in kernel)
@@ -1200,6 +1200,11 @@ int cfe_step(const cfe_parameters_struct* p,
     volbal->volin += forcing->rainfall_depth_m;
     volbal->volin_PET += forcing->et_potential_m;
 
+    // Snapshot volbal accumulators before kernel call so we can extract
+    // per-timestep impervious/pervious runoff from the delta.
+    const double vol_impervious_runoff_start = volbal->vol_impervious_runoff;
+    const double vol_pervious_runoff_start = volbal->vol_pervious_runoff;
+
     // 8) Call cfe model
     cfe(
         &s->soil_storage_deficit_m,
@@ -1244,12 +1249,21 @@ int cfe_step(const cfe_parameters_struct* p,
 
     // 10) Write outputs
 
+    out->impervious_runoff_m =
+        volbal->vol_impervious_runoff - vol_impervious_runoff_start;
+    out->pervious_runoff_m =
+        volbal->vol_pervious_runoff - vol_pervious_runoff_start;
     out->surface_runoff_generated_m = infiltration_excess_m;
     out->surface_routed_to_outlet_m = flux_direct_runoff_to_channel_m;
+    out->lateral_flow_generated_m = flux_lat_m;
     out->lateral_flow_m   = flux_nash_subsurface_lateral_runoff_m;
     out->baseflow_m       = flux_from_deep_gw_to_chan_m;
+    out->total_outflow_m  = flux_direct_runoff_to_channel_m +
+                            flux_nash_subsurface_lateral_runoff_m +
+                            flux_from_deep_gw_to_chan_m;
     out->qout_m           = Qout_m;
     out->actual_et_m      = et.actual_et_m_per_timestep;
+    out->bare_soil_evaporation_m = et.actual_bare_soil_evaporation_m_per_timestep;
     out->potential_et_m   = et.potential_et_m_per_timestep;
     out->giuh_outflow_m   = flux_direct_runoff_to_channel_m;
     out->soil_to_gw_percolation_flux_m = flux_perc_m;

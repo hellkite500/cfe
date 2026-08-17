@@ -122,6 +122,7 @@ extern void cfe(
   double soil_reservoir_storage_deficit_m = *soil_reservoir_storage_deficit_m_ptr;           // storage [m]
   double flux_surface_runoff_input_to_surface_routing_m = *surface_runoff_m_ptr;             // Schaake/Xinanjiang partitioned excess water this timestep [m]*/
   double infiltration_depth_m = *infiltration_depth_m_ptr;                                   // Schaake partitioned infiltration this timestep [m]
+  double impervious_runoff_m = 0.0;                                                          // runoff from mapped impervious area [m]
   double flux_perc_soil_to_gw_m = *flux_perc_m_ptr;                                          // water moved from soil reservoir to gw reservoir this timestep [m]
   double flux_soil_to_subsurface_lat_m = *flux_lat_m_ptr;                                    // water moved from soil reservoir to lateral flow Nash cascad this timestep [m]
   double gw_reservoir_storage_deficit_m = *gw_reservoir_storage_deficit_m_ptr;               // deficit in gw reservoir storage [m]
@@ -235,8 +236,10 @@ extern void cfe(
             timestep_rainfall_input_m,
             NWM_soil_params_struct.smcmax,
             NWM_soil_params_struct.D,
+            infiltration_excess_params_struct.urban_decimal_fraction,
             &flux_surface_runoff_input_to_surface_routing_m,
             &infiltration_depth_m,
+            &impervious_runoff_m,
             soil_state_in->ice_fraction,
             infiltration_excess_params_struct.ice_content_threshold);
       }
@@ -255,8 +258,10 @@ extern void cfe(
             timestep_rainfall_input_m,
             NWM_soil_params_struct.smcmax,
             NWM_soil_params_struct.D,
+            infiltration_excess_params_struct.urban_decimal_fraction,
             &flux_surface_runoff_input_to_surface_routing_m,
             &infiltration_depth_m,
+            &impervious_runoff_m,
             soil_reservoir_struct->ice_fraction_schaake,
             infiltration_excess_params_struct.ice_content_threshold);
       }
@@ -290,6 +295,7 @@ extern void cfe(
             &infiltration_excess_params_struct,
             &flux_surface_runoff_input_to_surface_routing_m,
             &infiltration_depth_m,
+            &impervious_runoff_m,
             soil_reservoir_struct->ice_fraction_xinanjiang);
       }
 
@@ -308,6 +314,7 @@ extern void cfe(
             &infiltration_excess_params_struct,
             &flux_surface_runoff_input_to_surface_routing_m,
             &infiltration_depth_m,
+            &impervious_runoff_m,
             soil_reservoir_struct->ice_fraction_xinanjiang);
       }
     }
@@ -449,7 +456,10 @@ extern void cfe(
   //-- NEW DSBM
   // CONSOLIDATED VOLUME BALANCE - SAME LOGIC FOR BOTH MODELS
   volbal_struct->vol_to_soil += infiltration_depth_m;
-  volbal_struct->vol_runoff += flux_surface_runoff_input_to_surface_routing_m; // Includes both Schaake/Xinanjiang + DSBM excess
+  volbal_struct->vol_impervious_runoff += impervious_runoff_m;
+  volbal_struct->vol_pervious_runoff +=
+      flux_surface_runoff_input_to_surface_routing_m - impervious_runoff_m;
+  volbal_struct->vol_runoff += flux_surface_runoff_input_to_surface_routing_m;
   volbal_struct->vol_infilt += infiltration_depth_m;
 
   // Soil fluxes (calculated differently but accounted the same way)
@@ -604,8 +614,10 @@ void Schaake_partitioning_scheme(
     double water_input_depth_m,
     double smcmax,
     double soil_depth,
+    double catchment_impervious_fraction,
     double *flux_surface_runoff_input_to_surface_routing_m,
     double *infiltration_depth_m,
+    double *impervious_runoff_m,
     double ice_fraction_schaake, double ice_content_threshold)
 {
 
@@ -632,14 +644,23 @@ void Schaake_partitioning_scheme(
   --------------------------------------------------------------------------------*/
 
   assert(ice_fraction_schaake >= 0.0);
+  assert(catchment_impervious_fraction >= 0.0);
+  assert(catchment_impervious_fraction <= 1.0);
 
   double timestep_d, Schaake_parenthetical_term, Ic, Px;
+  double pervious_water_input_m;
+  double pervious_runoff_m;
 
-  if (0.0 < water_input_depth_m)
+  *impervious_runoff_m = water_input_depth_m *
+                         catchment_impervious_fraction * 0.95;
+  pervious_water_input_m = water_input_depth_m - *impervious_runoff_m;
+  pervious_runoff_m = 0.0;
+
+  if (0.0 < pervious_water_input_m)
   {
     if (0.0 >= column_total_soil_moisture_deficit_m)
     {
-      *flux_surface_runoff_input_to_surface_routing_m = water_input_depth_m;
+      pervious_runoff_m = pervious_water_input_m;
       *infiltration_depth_m = 0.0;
     }
     else
@@ -661,25 +682,27 @@ void Schaake_partitioning_scheme(
 
       Ic = column_total_soil_moisture_deficit_m * Schaake_parenthetical_term;
 
-      Px = water_input_depth_m; // Total water input to partitioning scheme this time step [m]
+      Px = pervious_water_input_m; // Pervious water input to partitioning scheme this time step [m]
 
       // This is eqn 24 from Schaake et al.  NOTE: this is 0 in the case of a saturated soil column, when Ic=0.
       // Physically happens only if soil has no-flow lower b.c.
 
       *infiltration_depth_m = (Px * (Ic / (Px + Ic)));
 
-      if (0.0 < (water_input_depth_m - (*infiltration_depth_m)))
+      if (0.0 < (pervious_water_input_m - (*infiltration_depth_m)))
       {
-        *flux_surface_runoff_input_to_surface_routing_m = water_input_depth_m - (*infiltration_depth_m);
+        pervious_runoff_m = pervious_water_input_m - (*infiltration_depth_m);
       }
       else
-        *flux_surface_runoff_input_to_surface_routing_m = 0.0;
-      *infiltration_depth_m = water_input_depth_m - (*flux_surface_runoff_input_to_surface_routing_m);
+      {
+        pervious_runoff_m = 0.0;
+      }
+      *infiltration_depth_m = pervious_water_input_m - pervious_runoff_m;
     }
   }
   else
   {
-    *flux_surface_runoff_input_to_surface_routing_m = 0.0;
+    pervious_runoff_m = 0.0;
     *infiltration_depth_m = 0.0;
   }
 
@@ -714,7 +737,10 @@ void Schaake_partitioning_scheme(
 
   *infiltration_depth_m = factor * (*infiltration_depth_m);
 
-  *flux_surface_runoff_input_to_surface_routing_m = water_input_depth_m - (*infiltration_depth_m);
+  pervious_runoff_m = pervious_water_input_m - *infiltration_depth_m;
+
+  *flux_surface_runoff_input_to_surface_routing_m =
+      *impervious_runoff_m + pervious_runoff_m;
 
   return;
 }
@@ -731,6 +757,7 @@ void Xinanjiang_partitioning_scheme(
     struct RAINFALL_PARTITIONING_PARAMETERS_STRUCTURE *parms,
     double *flux_surface_runoff_input_to_surface_routing_m,
     double *infiltration_depth_m,
+    double *impervious_runoff_m,
     double ice_fraction_xinanjiang)
 {
   //------------------------------------------------------------------------
@@ -768,6 +795,7 @@ void Xinanjiang_partitioning_scheme(
   // Outputs
   //   double  flux_surface_runoff_input_to_surface_routing_m  amount of water partitioned to surface water this time step [m]
   //   double  infiltration_depth_m          amount of water partitioned as infiltration (soil water input) this time step [m]
+  //   double  impervious_runoff_m           runoff from mapped impervious area [m]
   //-------------------------------------------------------------------------
 
   // local variables
@@ -776,14 +804,15 @@ void Xinanjiang_partitioning_scheme(
   double max_tension_water_m;
   double max_free_water_m;
   double water_input_pervious_fraction_m;
-  double impervious_fraction;
-  double impervious_runoff_m;
+  double frozen_soil_runoff_m;
+  double xinanjiang_runoff_m;
   double f_over_F; // notation from Jayawardena and Zhou (2000) see Fig 2.
 
   // first thing, check whether we can just rreturn without calculating anything to save compute
   //----------------------                  NWM variable name
   *flux_surface_runoff_input_to_surface_routing_m = 0.0; // RUNSRF
   *infiltration_depth_m = 0.0;                           // PDDUM
+  *impervious_runoff_m = 0.0;
 
   if (water_input_depth_m < 1.0e-08)
   { // zero or really close to zero so calculations not needed
@@ -797,7 +826,8 @@ void Xinanjiang_partitioning_scheme(
   max_tension_water_m = 0.0; // WM_MAX
   free_water_m = 0.0;        // SM
   max_free_water_m = 0.0;    // SM_MAX
-  impervious_runoff_m = 0.0; // IRUNOFF
+  frozen_soil_runoff_m = 0.0;
+  xinanjiang_runoff_m = 0.0;
 
   // Partition the total soil water in the column between free water and tension water assuming that
   // total pore space in the soil Vtot, given by (porosity * soil_thickness) also equals max_tension_water_m + max_free_water_m.
@@ -823,25 +853,28 @@ void Xinanjiang_partitioning_scheme(
   if (free_water_m > max_free_water_m)
     free_water_m = max_free_water_m; // as done in NWM - could cause volbal err.
 
-  // Calculate the impervious runoff (see eq. 309 from Knoben et al).
-  // estimate the fraction of the modeled area that is impervious (impervious_fraction) based on
-  // urban classification (hard coded 95% [0.95] impervious) and frozen soils (passed to cfe
-  // from freeze-thaw model) using a weighted average.
+  // Route 95 percent of rainfall on the mapped impervious fraction directly
+  // to runoff.  The remaining rainfall is passed to the Xinanjiang scheme.
+  *impervious_runoff_m = water_input_depth_m *
+                         parms->urban_decimal_fraction * 0.95;
+  water_input_pervious_fraction_m =
+      water_input_depth_m - *impervious_runoff_m;
 
-  impervious_fraction = (parms->urban_decimal_fraction * 0.95) + ((1.0 - parms->urban_decimal_fraction) * ice_fraction_xinanjiang);
-  impervious_runoff_m = impervious_fraction * water_input_depth_m;
+  // Frozen-soil runoff is generated over the remaining area and is tracked as
+  // pervious runoff, not mapped-impervious runoff.
+  frozen_soil_runoff_m =
+      water_input_pervious_fraction_m * ice_fraction_xinanjiang;
+  water_input_pervious_fraction_m -= frozen_soil_runoff_m;
 
-  water_input_pervious_fraction_m = water_input_depth_m - impervious_runoff_m; // from here on just deal with
-                                                                               // water that enters the soil
   // edited by RLM; added logic block to handle what happens when porosity or field capacity = 0
   // FLO changed from 0.95 to 1.0 because what happens to the other 5% ?
   if (max_free_water_m <= 0.0 || max_tension_water_m <= 0.0)
   {
-    *flux_surface_runoff_input_to_surface_routing_m = water_input_pervious_fraction_m;
-
-    *flux_surface_runoff_input_to_surface_routing_m += impervious_runoff_m; // must add impervious runoff back in
-    *infiltration_depth_m = 0.0;                                            // added by FLO
-    return;                                                                 // this is an unusual situation and should only happen when one or both parameters are zero
+    *flux_surface_runoff_input_to_surface_routing_m =
+        *impervious_runoff_m + frozen_soil_runoff_m +
+        water_input_pervious_fraction_m;
+    *infiltration_depth_m = 0.0;
+    return;
   }
 
   // if code gets to here, then field capacity and soil porosity were both nonzero, so there is some space in
@@ -874,11 +907,14 @@ void Xinanjiang_partitioning_scheme(
   double S = free_water_m;
   double Smax = max_free_water_m;
 
-  double xinanjiang_runoff_m = R * (1.0 - pow((1.0 - (S / Smax)), Ex));
-  *flux_surface_runoff_input_to_surface_routing_m = xinanjiang_runoff_m + impervious_runoff_m;
+  xinanjiang_runoff_m = R * (1.0 - pow((1.0 - (S / Smax)), Ex));
+  *flux_surface_runoff_input_to_surface_routing_m =
+      *impervious_runoff_m + frozen_soil_runoff_m + xinanjiang_runoff_m;
 
-  // Separate the infiltration from the pervious water input (not total flux which includes impervious)
-  *infiltration_depth_m = water_input_pervious_fraction_m - xinanjiang_runoff_m;
+  // Infiltration is the portion of the remaining pervious-area input that was
+  // not converted to frozen-soil or Xinanjiang runoff.
+  *infiltration_depth_m =
+      water_input_pervious_fraction_m - xinanjiang_runoff_m;
 
 #ifdef DEBUG
   if (fabs(water_input_depth_m - (*infiltration_depth_m) - (*flux_surface_runoff_input_to_surface_routing_m)) > 1.0e-06)

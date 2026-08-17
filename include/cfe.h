@@ -145,14 +145,16 @@ typedef struct RAINFALL_PARTITIONING_PARAMETERS_STRUCTURE rainfall_partitioning_
 void Schaake_partitioning_scheme
       (
       double timestep_h,
-      double field_capacity_m, 
+      double field_capacity_m,
       double Schaake_adjusted_magic_constant_by_soil_type,
-      double column_total_soil_moisture_deficit_m, 
-      double water_input_depth_m, 
+      double column_total_soil_moisture_deficit_m,
+      double water_input_depth_m,
       double smcmax,
-      double soil_depth, 
-      double *flux_surface_runoff_input_to_surface_routing_m, 
+      double soil_depth,
+      double catchment_impervious_fraction,
+      double *flux_surface_runoff_input_to_surface_routing_m,
       double *infiltration_depth_m,
+      double *impervious_runoff_m,
       double ice_fraction_schaake, double ice_content_threshold
       );
 
@@ -161,11 +163,12 @@ extern void Xinanjiang_partitioning_scheme
         (
         double water_input_depth_m,
         double field_capacity_m,
-        double max_soil_moisture_storage_m, 
+        double max_soil_moisture_storage_m,
         double column_total_soil_water_m,
-        struct RAINFALL_PARTITIONING_PARAMETERS_STRUCTURE *parms, 
-        double *flux_surface_runoff_input_to_surface_routing_m, 
+        struct RAINFALL_PARTITIONING_PARAMETERS_STRUCTURE *parms,
+        double *flux_surface_runoff_input_to_surface_routing_m,
         double *infiltration_depth_m,
+        double *impervious_runoff_m,
         double ice_fraction_xinanjiang
         );
 

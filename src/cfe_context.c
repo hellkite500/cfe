@@ -49,7 +49,22 @@ int cfe_context_create_from_config(const char* cfg_path, CFE_Model_Context** out
         free(ctx);
         return -1;
     }
-    
+
+    if (ctx->config.state_pet_initialized) {
+        ctx->state.pet_temperature_state.skin_temperature_k =
+            ctx->config.state_skin_temperature_k;
+        ctx->state.pet_temperature_state.upper_soil_temperature_k =
+            ctx->config.state_upper_soil_temperature_k;
+        ctx->state.pet_temperature_state.estimated_annual_air_temperature_k =
+            ctx->config.state_estimated_annual_air_temperature_k;
+        ctx->state.pet_temperature_state.air_temperature_time_integral_k_s =
+            ctx->config.state_air_temperature_time_integral_k_s;
+        ctx->state.pet_temperature_state.accumulated_time_s =
+            ctx->config.state_accumulated_time_s;
+        ctx->state.pet_temperature_state.initialized =
+            ctx->config.state_pet_initialized;
+    }
+
     // this statement allows the volbal structure to persist
     cfe_initialize_volume_balance(&ctx->parameters, &ctx->options, &ctx->state, &ctx->volbal);
     
@@ -97,6 +112,64 @@ double calculate_total_storage(const CFE_Model_Context* ctx) {
     return total;
 }
 //####################
+int cfe_update_pet_and_bare_soil_evap(
+    cfe_forcing_struct *forcing,
+    const cfe_parameters_struct *parameters,
+    cfe_state_struct *state,
+    const cfe_options_struct *options)
+{
+    if (forcing == NULL || parameters == NULL || state == NULL || options == NULL)
+        return -1;
+
+    if (options->enable_ET_Priestley_Taylor == TRUE ||
+        options->simulate_soil_evaporation == TRUE) {
+        update_soil_skin_temperature_state(
+            forcing,
+            options->time_step_seconds,
+            forcing->day_of_year,
+            state);
+    }
+
+    if (options->enable_ET_Priestley_Taylor == TRUE) {
+        forcing->et_potential_m =
+            calculate_pet_priestley_taylor(
+                forcing,
+                options->time_step_seconds,
+                parameters->alpha_pt,
+                state);
+    }
+
+    forcing->forest_pet_m = forcing->et_potential_m;
+    forcing->bare_soil_aet_m = 0.0;
+
+    if (options->simulate_discrete_soil_moisture == TRUE &&
+        options->simulate_soil_evaporation == TRUE) {
+
+        double local_bare_soil_evaporation_m;
+
+        forcing->forest_pet_m =
+            forcing->et_potential_m *
+            parameters->catchment_vegetated_fraction;
+
+        local_bare_soil_evaporation_m =
+            calculate_bare_soil_evap(
+                forcing,
+                parameters,
+                state,
+                options->time_step_seconds,
+                CFE_AERODYNAMIC_RESISTANCE_S_PER_M,
+                parameters->bare_soil_rsurf_exp,
+                NULL,
+                NULL);
+
+        forcing->bare_soil_aet_m =
+            local_bare_soil_evaporation_m *
+            parameters->catchment_bare_soil_fraction;
+    }
+
+    return 0;
+}
+
 int cfe_context_update(CFE_Model_Context* ctx)
 {
     if (ctx == NULL) return -1;
@@ -114,51 +187,8 @@ int cfe_context_update(CFE_Model_Context* ctx)
     
     double dt = (double)ctx->options.time_step_seconds;
 
-    if (ctx->options.enable_ET_Priestley_Taylor == TRUE ||
-        ctx->options.simulate_soil_evaporation == TRUE) {
-        update_soil_skin_temperature_state(
-            &ctx->forcing,
-            ctx->options.time_step_seconds,
-            ctx->forcing.day_of_year,
-            &ctx->state);
-    }
-
-    if (ctx->options.enable_ET_Priestley_Taylor == TRUE) {
-        ctx->forcing.et_potential_m =
-            calculate_pet_priestley_taylor(
-                &ctx->forcing,
-                ctx->options.time_step_seconds,
-                ctx->parameters.alpha_pt,
-                &ctx->state);
-    }
-
-    ctx->forcing.forest_pet_m = ctx->forcing.et_potential_m;
-    ctx->forcing.bare_soil_aet_m = 0.0;
-
-    if (ctx->options.simulate_discrete_soil_moisture == TRUE &&
-        ctx->options.simulate_soil_evaporation == TRUE) {
-
-        double local_bare_soil_evaporation_m;
-
-        ctx->forcing.forest_pet_m =
-            ctx->forcing.et_potential_m *
-            ctx->parameters.catchment_forested_fraction;
-
-        local_bare_soil_evaporation_m =
-            calculate_bare_soil_evap(
-                &ctx->forcing,
-                &ctx->parameters,
-                &ctx->state,
-                ctx->options.time_step_seconds,
-                CFE_AERODYNAMIC_RESISTANCE_S_PER_M,
-                ctx->parameters.bare_soil_rsurf_exp,
-                NULL,
-                NULL);
-
-        ctx->forcing.bare_soil_aet_m =
-            local_bare_soil_evaporation_m *
-            ctx->parameters.catchment_bare_soil_fraction;
-    }
+    cfe_update_pet_and_bare_soil_evap(
+        &ctx->forcing, &ctx->parameters, &ctx->state, &ctx->options);
 
     if (cfe_step(&ctx->parameters, &ctx->options, &ctx->state, &ctx->forcing, dt,
         &ctx->last_outputs, &ctx->volbal) != 0) {

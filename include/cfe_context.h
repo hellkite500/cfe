@@ -33,6 +33,14 @@ int cfe_context_get_outputs(const CFE_Model_Context* ctx, cfe_outputs_struct* ou
 int cfe_context_get_time_step_seconds(const CFE_Model_Context* ctx, int* out_dt_s);
 int cfe_context_get_current_step(const CFE_Model_Context* ctx, int* out_step);
 
+/* Advance skin temperature, compute PET (if P-T enabled), and compute
+ * bare-soil evaporation.  Called from both BMI and standalone paths. */
+int cfe_update_pet_and_bare_soil_evap(
+    cfe_forcing_struct *forcing,
+    const cfe_parameters_struct *parameters,
+    cfe_state_struct *state,
+    const cfe_options_struct *options);
+
 /* Sum all storage compartments (soil + gw + routing) */
 double calculate_total_storage(const CFE_Model_Context* ctx);
 

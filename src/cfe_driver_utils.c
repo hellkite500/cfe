@@ -305,13 +305,42 @@ void close_output_files(FILE* q_fptr, FILE* Q_fptr, FILE* fluxes_fptr, FILE* sto
     if (forcing_fptr)  fclose(forcing_fptr);
 }
 
+static int match_dev_column(const char *tok, aorc_cols_t *cols, int idx)
+{
+    if (strcmp(tok, "time") == 0)                { cols->time_idx = idx; return 1; }
+    if (strcmp(tok, "APCP_surface") == 0)        { cols->apcp_idx = idx; return 1; }
+    if (strcmp(tok, "precip_rate") == 0)         { cols->precip_rate_idx = idx; cols->precip_rate_is_kg_m2_s1 = 0; return 1; }
+    if (strcmp(tok, "DLWRF_surface") == 0)       { cols->dlwrf_idx = idx; return 1; }
+    if (strcmp(tok, "DSWRF_surface") == 0)       { cols->dswrf_idx = idx; return 1; }
+    if (strcmp(tok, "PRES_surface") == 0)        { cols->pres_idx  = idx; return 1; }
+    if (strcmp(tok, "SPFH_2maboveground") == 0)  { cols->spfh_idx  = idx; return 1; }
+    if (strcmp(tok, "TMP_2maboveground") == 0)   { cols->tmp_idx   = idx; return 1; }
+    if (strcmp(tok, "UGRD_10maboveground") == 0) { cols->ugrd_idx  = idx; return 1; }
+    if (strcmp(tok, "VGRD_10maboveground") == 0) { cols->vgrd_idx  = idx; return 1; }
+    return 0;
+}
+
+static int match_ngen_column(const char *tok, aorc_cols_t *cols, int idx)
+{
+    if (strcmp(tok, "Time") == 0)    { cols->time_idx = idx; return 1; }
+    if (strcmp(tok, "RAINRATE") == 0){ cols->precip_rate_idx = idx; cols->precip_rate_is_kg_m2_s1 = 1; return 1; }
+    if (strcmp(tok, "LWDOWN") == 0)  { cols->dlwrf_idx = idx; return 1; }
+    if (strcmp(tok, "SWDOWN") == 0)  { cols->dswrf_idx = idx; return 1; }
+    if (strcmp(tok, "PSFC") == 0)    { cols->pres_idx  = idx; return 1; }
+    if (strcmp(tok, "Q2D") == 0)     { cols->spfh_idx  = idx; return 1; }
+    if (strcmp(tok, "T2D") == 0)     { cols->tmp_idx   = idx; return 1; }
+    if (strcmp(tok, "U2D") == 0)     { cols->ugrd_idx  = idx; return 1; }
+    if (strcmp(tok, "V2D") == 0)     { cols->vgrd_idx  = idx; return 1; }
+    return 0;
+}
+
 //##########################
 int open_forcing_file(const char* path, FILE** fptr, aorc_cols_t* cols)
 {
     if (path == NULL || path[0] == '\0' || fptr == NULL || cols == NULL) return -1;
     *fptr = fopen(path, "r");
     if (*fptr == NULL) return -1;
-    
+
     // Read header line
     char header[2048];
     if (fgets(header, sizeof(header), *fptr) == NULL) {
@@ -319,7 +348,7 @@ int open_forcing_file(const char* path, FILE** fptr, aorc_cols_t* cols)
         *fptr = NULL;
         return -1;
     }
-    
+
     // Initialize all column indices to -1 (not found)
     cols->time_idx = -1;
     cols->apcp_idx = -1;
@@ -331,31 +360,33 @@ int open_forcing_file(const char* path, FILE** fptr, aorc_cols_t* cols)
     cols->tmp_idx = -1;
     cols->ugrd_idx = -1;
     cols->vgrd_idx = -1;
-    
-    // Tokenize header to find column indices (0-based)
+    cols->precip_rate_is_kg_m2_s1 = 0;
+    cols->detected_format = FORCING_FMT_UNKNOWN;
+
     int idx = 0;
+    int dev_matches = 0, ngen_matches = 0;
     for (char* tok = strtok(header, ",\r\n"); tok != NULL; tok = strtok(NULL, ",\r\n"), idx++) {
-        if (strcmp(tok, "time") == 0) cols->time_idx = idx;
-        else if (strcmp(tok, "APCP_surface") == 0) cols->apcp_idx = idx;
-        else if (strcmp(tok, "precip_rate") == 0) cols->precip_rate_idx = idx;
-        else if (strcmp(tok, "DLWRF_surface") == 0) cols->dlwrf_idx = idx;
-        else if (strcmp(tok, "DSWRF_surface") == 0) cols->dswrf_idx = idx;
-        else if (strcmp(tok, "PRES_surface") == 0) cols->pres_idx = idx;
-        else if (strcmp(tok, "SPFH_2maboveground") == 0) cols->spfh_idx = idx;
-        else if (strcmp(tok, "TMP_2maboveground") == 0) cols->tmp_idx = idx;
-        else if (strcmp(tok, "UGRD_10maboveground") == 0) cols->ugrd_idx = idx;
-        else if (strcmp(tok, "VGRD_10maboveground") == 0) cols->vgrd_idx = idx;
+        dev_matches  += match_dev_column(tok, cols, idx);
+        ngen_matches += match_ngen_column(tok, cols, idx);
     }
-    
+
+    if (ngen_matches > 0 && dev_matches == 0)
+        cols->detected_format = FORCING_FMT_NGEN;
+    else if (dev_matches > 0 && ngen_matches == 0)
+        cols->detected_format = FORCING_FMT_DEV;
+    else
+        cols->detected_format = FORCING_FMT_UNKNOWN;
+
     // Check for required columns
     if (cols->time_idx < 0) {
-        fprintf(stderr, "ERROR: AORC header missing 'time' column\n");
+        fprintf(stderr, "ERROR: AORC header missing 'time' or 'Time' column\n");
         fclose(*fptr);
         *fptr = NULL;
         return -1;
     }
     if (cols->apcp_idx < 0 && cols->precip_rate_idx < 0) {
-        fprintf(stderr, "ERROR: AORC header missing both 'APCP_surface' and 'precip_rate'\n");
+        fprintf(stderr, "ERROR: AORC header missing precipitation column "
+                "(need 'APCP_surface', 'precip_rate', or 'RAINRATE')\n");
         fclose(*fptr);
         *fptr = NULL;
         return -1;
@@ -404,6 +435,9 @@ int read_next_forcing_aorc(FILE* f, const aorc_cols_t* cols, int dt_seconds,
         }
         else if (idx == cols->precip_rate_idx && *tok != '\0') {
             forcing->precip_rate = atof(tok);
+            if (cols->precip_rate_is_kg_m2_s1) {
+                forcing->precip_rate /= 1000.0;
+            }
             have_rate = 1;
         }
         else if (idx == cols->dlwrf_idx && *tok != '\0') {
@@ -457,11 +491,19 @@ int read_next_forcing_aorc(FILE* f, const aorc_cols_t* cols, int dt_seconds,
 int parse_time_string(const char* time_str, aorc_forcing_time_struct* forcing_time)
 {
     if (!time_str || !forcing_time) return -1;
-    
-    // Parse format: "2015/12/01 00:00:00"
-    int parsed = sscanf(time_str, "%d/%d/%d %d:%d:%d",
+
+    // Accept both "2015/12/01 00:00:00" (CFE dev format) and
+    // "2012-10-01 00:00:00" (NextGen/AORC-standard format).
+    char normalized[TIME_STRING_LENGTH];
+    strncpy(normalized, time_str, sizeof(normalized) - 1);
+    normalized[sizeof(normalized) - 1] = '\0';
+    for (char* p = normalized; *p; p++) {
+        if (*p == '-') *p = '/';
+    }
+
+    int parsed = sscanf(normalized, "%d/%d/%d %d:%d:%d",
                        &forcing_time->year,
-                       &forcing_time->month, 
+                       &forcing_time->month,
                        &forcing_time->day,
                        &forcing_time->hour,
                        &forcing_time->minute,
@@ -570,7 +612,8 @@ void format_timestamp(char* timestamp_str, size_t str_size, int timestep,
     if (string_compare_ignore_case(time_format, "timestep") == 0) {
         snprintf(timestamp_str, str_size, "%d", timestep);
     }
-    else if (string_compare_ignore_case(time_format, "datetime") == 0) {
+    else if (string_compare_ignore_case(time_format, "datetime") == 0 ||
+             string_compare_ignore_case(time_format, "datetime_dash") == 0) {
         // Build a struct tm from the forcing_time start (assumed UTC)
         struct tm t = {0};
         t.tm_year = forcing_time->year - 1900;  // struct tm years since 1900
@@ -599,14 +642,17 @@ void format_timestamp(char* timestamp_str, size_t str_size, int timestep,
         gmtime_r(&now, &curr);
     #endif
 
-        // Format clean UTC timestamp
-        snprintf(timestamp_str, str_size, "%04d/%02d/%02d %02d:%02d:%02d",
-                curr.tm_year + 1900,
-                curr.tm_mon + 1,
-                curr.tm_mday,
-                curr.tm_hour,
-                curr.tm_min,
-                curr.tm_sec);
+        // "datetime" -> YYYY/MM/DD HH:MM:SS (customary CFE format)
+        // "datetime_dash" -> YYYY-MM-DD HH:MM:SS (ISO-8601-like)
+        if (string_compare_ignore_case(time_format, "datetime_dash") == 0) {
+            snprintf(timestamp_str, str_size, "%04d-%02d-%02d %02d:%02d:%02d",
+                    curr.tm_year + 1900, curr.tm_mon + 1, curr.tm_mday,
+                    curr.tm_hour, curr.tm_min, curr.tm_sec);
+        } else {
+            snprintf(timestamp_str, str_size, "%04d/%02d/%02d %02d:%02d:%02d",
+                    curr.tm_year + 1900, curr.tm_mon + 1, curr.tm_mday,
+                    curr.tm_hour, curr.tm_min, curr.tm_sec);
+        }
     }
     else if (string_compare_ignore_case(time_format, "juliandate") == 0) {
         // Calculate Julian date for current timestep
@@ -658,8 +704,20 @@ void write_output_headers(const cfe_options_struct* options,
 
     if (fluxes_fptr) {
         fprintf(fluxes_fptr, "# CFE Internal Fluxes Output\n");
-        fprintf(fluxes_fptr, "# %s%ssurface_runoff_generated_m%ssurface_routed_to_outlet_m%slateral_flow_m%sbaseflow_m\n",
-                time_format, delimiter, delimiter, delimiter, delimiter);
+        fprintf(fluxes_fptr,
+                "# %s%sinput_rainfall_m%simpervious_runoff_m%spervious_runoff_m"
+                "%ssurface_runoff_generated_m%ssurface_routed_m"
+                "%slateral_flow_generated_m%slateral_flow_routed_m"
+                "%spotential_transpiration_m%sbare_soil_evaporation_m"
+                "%sactual_transpiration_m%saet_m%spercolation_to_gw_m"
+                "%sbaseflow_m%stotal_outflow_m\n",
+                time_format,
+                delimiter, delimiter, delimiter,
+                delimiter, delimiter,
+                delimiter, delimiter,
+                delimiter, delimiter,
+                delimiter, delimiter, delimiter,
+                delimiter, delimiter);
     }
     
     if (theta_fptr) {
@@ -669,15 +727,20 @@ void write_output_headers(const cfe_options_struct* options,
     }
     
     if (storages_fptr) {
+        fprintf(storages_fptr, "# CFE Internal Storages Output\n");
         if(options->simulate_discrete_soil_moisture == FALSE) {
-            fprintf(storages_fptr, "# CFE Internal Storages Output\n");
-            fprintf(storages_fptr, "#%s%ssoil_storage_m%sgw_storage_m\n",
-                    time_format, delimiter, delimiter);
+            fprintf(storages_fptr, "#%s%sstorage_in_soil_reservoir_m%sstorage_in_gw_reservoir_m"
+                    "%ssurface_routing_storage_m%ssubsurface_lateral_storage_m\n",
+                    time_format, delimiter, delimiter, delimiter, delimiter);
         } else {
-            fprintf(storages_fptr, "# CFE Internal Storages Output\n");
-            fprintf(storages_fptr, "#%s%stheta1%stheta2%stheta3%stheta4%sgw_storage_m\n", 
-                    time_format, delimiter, delimiter, delimiter, delimiter, delimiter);
-        }       
+            fprintf(storages_fptr, "#%s", time_format);
+            for (int i = 0; i < NDISC; i++) {
+                fprintf(storages_fptr, "%sstorage_in_disc%d_m", delimiter, i + 1);
+            }
+            fprintf(storages_fptr, "%stotal_storage_in_soil_m%sstorage_in_gw_reservoir_m"
+                    "%ssurface_routing_storage_m%ssubsurface_lateral_storage_m\n",
+                    delimiter, delimiter, delimiter, delimiter);
+        }
     }
 }
 
@@ -724,37 +787,68 @@ void write_all_outputs(int timestep,
     // Write fluxes output
     if (fluxes_fptr) {
         fprintf(fluxes_fptr, "%s%s", timestamp_str, delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, forcing->rainfall_depth_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->impervious_runoff_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->pervious_runoff_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
         fprintf(fluxes_fptr, options->output_value_format, outputs->surface_runoff_generated_m);
         fprintf(fluxes_fptr, "%s", delimiter);
         fprintf(fluxes_fptr, options->output_value_format, outputs->surface_routed_to_outlet_m);
         fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->lateral_flow_generated_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
         fprintf(fluxes_fptr, options->output_value_format, outputs->lateral_flow_m);
         fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->potential_et_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->bare_soil_evaporation_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format,
+                outputs->actual_et_m - outputs->bare_soil_evaporation_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->actual_et_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->soil_to_gw_percolation_flux_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
         fprintf(fluxes_fptr, options->output_value_format, outputs->baseflow_m);
+        fprintf(fluxes_fptr, "%s", delimiter);
+        fprintf(fluxes_fptr, options->output_value_format, outputs->total_outflow_m);
         fprintf(fluxes_fptr, "\n");
     }
 
     // Write storages output
     if (storages_fptr) {
-        if(options->simulate_discrete_soil_moisture == FALSE) {
-            fprintf(storages_fptr, "%s%s", timestamp_str, delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->soil_storage_m);
-            fprintf(storages_fptr, "%s", delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->gw_storage_m);
-            fprintf(storages_fptr, "\n");
-        } else {
-            fprintf(storages_fptr, "%s%s", timestamp_str, delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->soil_state_out.theta_out[0]);
-            fprintf(storages_fptr, "%s", delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->soil_state_out.theta_out[1]);
-            fprintf(storages_fptr, "%s", delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->soil_state_out.theta_out[2]);
-            fprintf(storages_fptr, "%s", delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->soil_state_out.theta_out[3]);
-            fprintf(storages_fptr, "%s", delimiter);
-            fprintf(storages_fptr, options->output_value_format, state->gw_storage_m);
-            fprintf(storages_fptr, "\n");
+        double surface_routing_storage_m = 0.0;
+        for (int i = 0; i < params->giuh_num_ordinates; i++) {
+            surface_routing_storage_m += state->giuh_queue_m[i];
         }
+
+        double subsurface_lateral_storage_m = 0.0;
+        for (int i = 0; i < params->nash_subsurface_N; i++) {
+            subsurface_lateral_storage_m += state->nash_subsurface_storage_m[i];
+        }
+
+        fprintf(storages_fptr, "%s%s", timestamp_str, delimiter);
+        if(options->simulate_discrete_soil_moisture == FALSE) {
+            fprintf(storages_fptr, options->output_value_format, state->soil_storage_m);
+        } else {
+            for (int i = 0; i < NDISC; i++) {
+                double storage_in_disc_m = state->soil_state_out.theta_out[i] *
+                                           state->soil_geometry.dz_m[i];
+                fprintf(storages_fptr, options->output_value_format, storage_in_disc_m);
+                fprintf(storages_fptr, "%s", delimiter);
+            }
+            fprintf(storages_fptr, options->output_value_format, state->soil_state_out.total_storage_m);
+        }
+        fprintf(storages_fptr, "%s", delimiter);
+        fprintf(storages_fptr, options->output_value_format, state->gw_storage_m);
+        fprintf(storages_fptr, "%s", delimiter);
+        fprintf(storages_fptr, options->output_value_format, surface_routing_storage_m);
+        fprintf(storages_fptr, "%s", delimiter);
+        fprintf(storages_fptr, options->output_value_format, subsurface_lateral_storage_m);
+        fprintf(storages_fptr, "\n");
     }
 
     // Write theta output (iff discrete soil moisture is enabled and file is open)
@@ -880,6 +974,8 @@ void write_volume_balance_summary(FILE* output_fptr,
     fprintf(output_fptr, "\n****************** PRECIPITATION VOLUME BALANCE *****************\n");
     fprintf(output_fptr, " Volume input                       = %8.4lf m\n", volbal->volin);
     fprintf(output_fptr, " Surface runoff generated           = %8.4lf m\n", volbal->vol_runoff);
+    fprintf(output_fptr, "   Impervious runoff                = %8.4lf m\n", volbal->vol_impervious_runoff);
+    fprintf(output_fptr, "   Pervious runoff                  = %8.4lf m\n", volbal->vol_pervious_runoff);
     fprintf(output_fptr, " Added to soil moisture             = %8.4lf m\n", volbal->vol_infilt);
     fprintf(output_fptr, " Volume of ET from rain             = %8.4lf m\n", volbal->vol_et_from_rain);
     fprintf(output_fptr, " Precip residual                    = %6.4e m\n", direct_residual);
@@ -934,7 +1030,9 @@ void write_volume_balance_summary(FILE* output_fptr,
         fprintf(output_fptr, " Infiltration into soil             = %e m\n", volbal->vol_infilt);
         fprintf(output_fptr, " From soil to lat. flow             = %e m\n", volbal->vol_soil_to_lat_flow);
         fprintf(output_fptr, " From from soil to GW               = %e m\n", volbal->vol_soil_to_gw);
-        fprintf(output_fptr, " ET from soil                       = %e m\n", volbal->vol_et_from_soil);
+        fprintf(output_fptr, " Vegetated-area AET                 = %e m\n", volbal->vol_forest_aet);
+        fprintf(output_fptr, " Bare-soil evaporation              = %e m\n", volbal->vol_bare_soil_evaporation);
+        fprintf(output_fptr, " Total ET from soil                 = %e m\n", volbal->vol_et_from_soil);
         fprintf(output_fptr, " Final soil vol.                    = %e m\n", vol_soil_end);
         fprintf(output_fptr, " Soil residual                      = %6.4e m\n", soil_residual);
     } else {
@@ -942,7 +1040,9 @@ void write_volume_balance_summary(FILE* output_fptr,
         fprintf(output_fptr, " Infiltration into soil             = %8.4lf m\n", volbal->vol_infilt);
         fprintf(output_fptr, " From soil to lat. flow             = %8.4lf m\n", volbal->vol_soil_to_lat_flow);
         fprintf(output_fptr, " From from soil to GW               = %8.4lf m\n", volbal->vol_soil_to_gw);
-        fprintf(output_fptr, " ET from soil                       = %8.4lf m\n", volbal->vol_et_from_soil);
+        fprintf(output_fptr, " Vegetated-area AET                 = %8.4lf m\n", volbal->vol_forest_aet);
+        fprintf(output_fptr, " Bare-soil evaporation              = %8.4lf m\n", volbal->vol_bare_soil_evaporation);
+        fprintf(output_fptr, " Total ET from soil                 = %8.4lf m\n", volbal->vol_et_from_soil);
         fprintf(output_fptr, " Final soil vol.                    = %8.4lf m\n", vol_soil_end);
         fprintf(output_fptr, " Soil residual                      = %6.4e m\n", soil_residual);
     }
@@ -989,6 +1089,8 @@ void write_volume_balance_summary(FILE* output_fptr,
     fprintf(output_fptr, " Total liquid water INPUT ---B----- = %8.4lf m\n", volbal->volin);
     fprintf(output_fptr, " Total PET                          = %8.4lf m\n", volbal->volin_PET);
     fprintf(output_fptr, " Total AET                          = %8.4lf m\n", total_AET_vol);
+    fprintf(output_fptr, " Forest/root-zone AET               = %8.4lf m\n", volbal->vol_forest_aet);
+    fprintf(output_fptr, " Bare-soil evaporation              = %8.4lf m\n", volbal->vol_bare_soil_evaporation);
     fprintf(output_fptr, " Total outflow                      = %8.4lf m\n", volbal->volout);
     fprintf(output_fptr, " Sum of outflow + AET -------C----- = %8.4lf m\n", total_AET_vol + volbal->volout);
     fprintf(output_fptr, " Final soil reservoir storage       = %8.4lf m\n", vol_soil_end);
@@ -1007,6 +1109,15 @@ void write_volume_balance_summary(FILE* output_fptr,
     if (fabs(global_residual) > 1.0e-12) {
         fprintf(output_fptr, "!!! WARNING: GLOBAL VOLUME BALANCE CHECK FAILED\n");
     }
+
+    fprintf(output_fptr, "\n*********** POTENTIAL ET/TRANSPIRATION (information only) *********\n");
+    fprintf(output_fptr, " Total catchment PET (pre-partition)^          = %8.4lf m\n", volbal->volin_PET);
+    fprintf(output_fptr, " Total vegetated-area potential transpiration^ = %8.4lf m\n",
+            volbal->volin_PET * params->catchment_vegetated_fraction);
+    fprintf(output_fptr, "\n ^ Not used in the volume balance calculation (A+B-C-D); shown for\n");
+    fprintf(output_fptr, "   reference only. These may differ because the entire catchment might\n");
+    fprintf(output_fptr, "   not be vegetated: potential transpiration = catchment PET x\n");
+    fprintf(output_fptr, "   catchment_vegetated_fraction.\n");
 }
 
 // This function writes out a new .cfg file with updated model states
@@ -1089,6 +1200,8 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     fprintf(hotstart_fptr, "control_ET_simulate_Priestley_Taylor=%.3f[]\n", cfg->et_alpha_pt);
     fprintf(hotstart_fptr, "control_soil_simulate_discrete_soil_moisture_true_false=%s\n",
             cfg->control_soil_simulate_discrete_soil_moisture_true_false ? "TRUE" : "FALSE");
+    fprintf(hotstart_fptr, "control_soil_simulate_soil_evaporation=%s\n",
+            cfg->control_soil_simulate_soil_evaporation ? "TRUE" : "FALSE");
     fprintf(hotstart_fptr, "control_ET_deepest_root_zone_discretization=%d\n",
             cfg->control_ET_deepest_root_zone_discretization);
     fprintf(hotstart_fptr, "control_soil_use_lookup_table_num_points=%d\n",
@@ -1218,6 +1331,23 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
         fprintf(hotstart_fptr, "%.17e", state->nash_subsurface_storage_m[i]);
     }
     fprintf(hotstart_fptr, "[m]\n");
+    fprintf(hotstart_fptr, "\n");
+
+    // PET temperature state (UPDATED FROM MODEL STATE)
+    fprintf(hotstart_fptr, "#===========================\n");
+    fprintf(hotstart_fptr, "#----- PET temperature state (UPDATED FROM MODEL STATE)\n");
+    fprintf(hotstart_fptr, "state_skin_temperature_k=%.17e[K]\n",
+            state->pet_temperature_state.skin_temperature_k);
+    fprintf(hotstart_fptr, "state_upper_soil_temperature_k=%.17e[K]\n",
+            state->pet_temperature_state.upper_soil_temperature_k);
+    fprintf(hotstart_fptr, "state_estimated_annual_air_temperature_k=%.17e[K]\n",
+            state->pet_temperature_state.estimated_annual_air_temperature_k);
+    fprintf(hotstart_fptr, "state_air_temperature_time_integral_k_s=%.17e[K s]\n",
+            state->pet_temperature_state.air_temperature_time_integral_k_s);
+    fprintf(hotstart_fptr, "state_accumulated_time_s=%.17e[s]\n",
+            state->pet_temperature_state.accumulated_time_s);
+    fprintf(hotstart_fptr, "state_pet_initialized=%d[]\n",
+            state->pet_temperature_state.initialized);
     fprintf(hotstart_fptr, "\n");
 
     // Output Configuration (copy from original)

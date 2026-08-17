@@ -108,7 +108,7 @@ typedef struct CFE_CONFIG
     int    control_soil_simulate_discrete_soil_moisture_true_false;  // New field ffor version 3
     int    control_soil_simulate_soil_evaporation;
     int    control_ET_deepest_root_zone_discretization;
-    double catchment_forested_fraction;
+    double catchment_vegetated_fraction;
     int    control_soil_use_lookup_table_num_points;
     char   partitioning_scheme_name[OPTION_STRING_LENGTH];
     char   surface_routing_scheme_name[OPTION_STRING_LENGTH];
@@ -121,6 +121,13 @@ typedef struct CFE_CONFIG
     double soil_Xinanjiang_tension_water_soil_moist_distrib_exponent;
     double soil_Xinanjiang_free_water_soil_moist_distrib_exponent;
 
+    // PET temperature state (for hotstart restore)
+    double state_skin_temperature_k;
+    double state_upper_soil_temperature_k;
+    double state_estimated_annual_air_temperature_k;
+    double state_air_temperature_time_integral_k_s;
+    double state_accumulated_time_s;
+    int    state_pet_initialized;
 
     // Output configuration fields
     char   output_path_name[PATH_FILENAME_STRING_LENGTH];

@@ -82,10 +82,25 @@ int main(int argc, char* argv[])
     
     // 3. Initialize CFE state
     if (cfe_initialize(&params, &options, &state) != 0) {
-        fprintf(stderr, "ERROR: Failed to initialize CFE state\n"); 
-        return 1; 
-    } 
-    
+        fprintf(stderr, "ERROR: Failed to initialize CFE state\n");
+        return 1;
+    }
+
+    if (config.state_pet_initialized) {
+        state.pet_temperature_state.skin_temperature_k =
+            config.state_skin_temperature_k;
+        state.pet_temperature_state.upper_soil_temperature_k =
+            config.state_upper_soil_temperature_k;
+        state.pet_temperature_state.estimated_annual_air_temperature_k =
+            config.state_estimated_annual_air_temperature_k;
+        state.pet_temperature_state.air_temperature_time_integral_k_s =
+            config.state_air_temperature_time_integral_k_s;
+        state.pet_temperature_state.accumulated_time_s =
+            config.state_accumulated_time_s;
+        state.pet_temperature_state.initialized =
+            config.state_pet_initialized;
+    }
+
     // 4. Handle forcing file setup
     char forcing_file_path[PATH_FILENAME_STRING_LENGTH] = "";
     int forcing_from_cmdline = 0;
@@ -219,47 +234,9 @@ int main(int argc, char* argv[])
             memset(&forcing, 0, sizeof(forcing));
         }
 
-        // 12b. Update skin temperature and calculate PET
-        if (options.enable_ET_Priestley_Taylor == TRUE ||
-            options.simulate_soil_evaporation == TRUE) {
-            update_soil_skin_temperature_state(
-                &forcing, options.time_step_seconds,
-                forcing.day_of_year, &state);
-        }
-
-        if (options.enable_ET_Priestley_Taylor == TRUE) {
-            forcing.et_potential_m = calculate_pet_priestley_taylor(
-                &forcing, options.time_step_seconds,
-                params.alpha_pt, &state);
-        }
-
-        forcing.forest_pet_m = forcing.et_potential_m;
-        forcing.bare_soil_aet_m = 0.0;
-
-        if (options.simulate_discrete_soil_moisture == TRUE &&
-            options.simulate_soil_evaporation == TRUE) {
-
-            double local_bare_soil_evaporation_m;
-
-            forcing.forest_pet_m =
-                forcing.et_potential_m *
-                params.catchment_forested_fraction;
-
-            local_bare_soil_evaporation_m =
-                calculate_bare_soil_evap(
-                    &forcing,
-                    &params,
-                    &state,
-                    options.time_step_seconds,
-                    CFE_AERODYNAMIC_RESISTANCE_S_PER_M,
-                    params.bare_soil_rsurf_exp,
-                    NULL,
-                    NULL);
-
-            forcing.bare_soil_aet_m =
-                local_bare_soil_evaporation_m *
-                params.catchment_bare_soil_fraction;
-        }
+        // 12b. Update skin temperature, PET, and bare-soil evaporation
+        cfe_update_pet_and_bare_soil_evap(
+            &forcing, &params, &state, &options);
 
         // 12c. Run CFE model step
         cfe_step(&params, &options, &state, &forcing, (double)options.time_step_seconds, &outputs, &volbal);

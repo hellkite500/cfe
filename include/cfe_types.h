@@ -249,7 +249,7 @@ typedef struct {
     double nash_subsurface_init_storage_m[2];
 
     /* Land-cover fractions */
-    double catchment_forested_fraction;
+    double catchment_vegetated_fraction;
     double catchment_impervious_fraction;
     double catchment_bare_soil_fraction;
 
@@ -357,7 +357,13 @@ typedef struct {
     int day_of_year;              // 1 through 366
 } cfe_forcing_struct;
 
-typedef struct {  //<----- needed in forcing reader...
+typedef enum {
+    FORCING_FMT_UNKNOWN = 0,
+    FORCING_FMT_DEV,        // Fred's standalone dev format (APCP_surface, DLWRF_surface, ...)
+    FORCING_FMT_NGEN        // ngen/AORC-standard format (RAINRATE, LWDOWN, SWDOWN, ...)
+} forcing_format_t;
+
+typedef struct {
     int time_idx;
     int apcp_idx;
     int precip_rate_idx;
@@ -368,6 +374,8 @@ typedef struct {  //<----- needed in forcing reader...
     int tmp_idx;
     int ugrd_idx;
     int vgrd_idx;
+    int precip_rate_is_kg_m2_s1;
+    forcing_format_t detected_format;
 } aorc_cols_t;
 
 //typedef struct { <- old pre 3.0
@@ -387,6 +395,8 @@ typedef struct {
     double volstart_subsurface ;
     double vol_direct_runoff   ;  // this is water that won't fit into the soil suring a timestep because it is full
                                   // particularly in the discretized soil situation, where the upper disc fills
+    double vol_impervious_runoff;
+    double vol_pervious_runoff  ;
     double vol_runoff          ;
     double vol_infilt          ;
     double vol_out_surface     ;
@@ -434,12 +444,17 @@ typedef struct {
 /* Outputs: results per step */
 //############
 typedef struct {
+    double impervious_runoff_m;
+    double pervious_runoff_m;
     double surface_runoff_generated_m;
     double surface_routed_to_outlet_m;
+    double lateral_flow_generated_m;
     double lateral_flow_m;
     double baseflow_m;
+    double total_outflow_m;
     double qout_m;
     double actual_et_m;
+    double bare_soil_evaporation_m;
     double potential_et_m;
     double giuh_outflow_m;
     double soil_to_gw_percolation_flux_m;
