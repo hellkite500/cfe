@@ -42,9 +42,16 @@ static const char* input_var_names[] = {
     "rainfall_depth_m",
     "et_potential_m",
     "ice_fraction",
-    "day_of_year"
+    "day_of_year",
+    "DLWRF_surface",
+    "DSWRF_surface",
+    "PRES_surface",
+    "SPFH_2maboveground",
+    "TMP_2maboveground",
+    "UGRD_10maboveground",
+    "VGRD_10maboveground"
 };
-static const int INPUT_VAR_NAME_COUNT = 4;
+static const int INPUT_VAR_NAME_COUNT = 11;
 
 /* --- outputs --- */
 static const char* output_var_names[] = {
@@ -221,8 +228,33 @@ static int Get_component_name(Bmi *self, char *name) {
     return BMI_SUCCESS;
 }
 
+static int needs_aorc_forcing(Bmi *self) {
+    if (CONTEXT(self) == NULL) return 0;
+    return CONTEXT(self)->options.enable_ET_Priestley_Taylor ||
+           CONTEXT(self)->options.simulate_soil_evaporation;
+}
+
+static int is_aorc_only_input(const char *name) {
+    return strcmp(name, "day_of_year") == 0 ||
+           strcmp(name, "DLWRF_surface") == 0 ||
+           strcmp(name, "DSWRF_surface") == 0 ||
+           strcmp(name, "PRES_surface") == 0 ||
+           strcmp(name, "SPFH_2maboveground") == 0 ||
+           strcmp(name, "TMP_2maboveground") == 0 ||
+           strcmp(name, "UGRD_10maboveground") == 0 ||
+           strcmp(name, "VGRD_10maboveground") == 0;
+}
+
+static int count_skipped_inputs(Bmi *self) {
+    if (needs_aorc_forcing(self)) return 0;
+    int skip = 0;
+    for (int i = 0; i < INPUT_VAR_NAME_COUNT; i++)
+        if (is_aorc_only_input(input_var_names[i])) skip++;
+    return skip;
+}
+
 static int Get_input_item_count(Bmi *self, int *count) {
-    *count = INPUT_VAR_NAME_COUNT;
+    *count = INPUT_VAR_NAME_COUNT - count_skipped_inputs(self);
     return BMI_SUCCESS;
 }
 
@@ -232,8 +264,13 @@ static int Get_output_item_count(Bmi *self, int *count) {
 }
 
 static int Get_input_var_names(Bmi *self, char **names) {
-    for (int i = 0; i < INPUT_VAR_NAME_COUNT; i++)
-        strcpy(names[i], input_var_names[i]);
+    int want_aorc = needs_aorc_forcing(self);
+    int j = 0;
+    for (int i = 0; i < INPUT_VAR_NAME_COUNT; i++) {
+        if (!want_aorc && is_aorc_only_input(input_var_names[i]))
+            continue;
+        strcpy(names[j++], input_var_names[i]);
+    }
     return BMI_SUCCESS;
 }
 
@@ -328,6 +365,24 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
              strcmp(name, "day_of_year") == 0) {
         strcpy(units, "1");
+    }
+    /* --- AORC forcing variables --- */
+    else if (strcmp(name, "DLWRF_surface") == 0 ||
+             strcmp(name, "DSWRF_surface") == 0) {
+        strcpy(units, "W m-2");
+    }
+    else if (strcmp(name, "PRES_surface") == 0) {
+        strcpy(units, "Pa");
+    }
+    else if (strcmp(name, "SPFH_2maboveground") == 0) {
+        strcpy(units, "kg kg-1");
+    }
+    else if (strcmp(name, "TMP_2maboveground") == 0) {
+        strcpy(units, "K");
+    }
+    else if (strcmp(name, "UGRD_10maboveground") == 0 ||
+             strcmp(name, "VGRD_10maboveground") == 0) {
+        strcpy(units, "m s-1");
     }
     /* --- calibration parameter units (internal representation) --- */
     else if (strcmp(name, "soil_effective_porosity") == 0 ||
@@ -603,6 +658,13 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "et_potential_m") == 0)    { *dest = &ctx->forcing.et_potential_m;             return BMI_SUCCESS; }
     if (strcmp(name, "ice_fraction") == 0)      { *dest = &ctx->forcing.ice_fraction;              return BMI_SUCCESS; }
     if (strcmp(name, "day_of_year") == 0)       { *dest = &ctx->forcing.day_of_year;               return BMI_SUCCESS; }
+    if (strcmp(name, "DLWRF_surface") == 0)     { *dest = &ctx->forcing.DLWRF_surface;             return BMI_SUCCESS; }
+    if (strcmp(name, "DSWRF_surface") == 0)     { *dest = &ctx->forcing.DSWRF_surface;             return BMI_SUCCESS; }
+    if (strcmp(name, "PRES_surface") == 0)      { *dest = &ctx->forcing.PRES_surface;              return BMI_SUCCESS; }
+    if (strcmp(name, "SPFH_2maboveground") == 0){ *dest = &ctx->forcing.SPFH_2maboveground;       return BMI_SUCCESS; }
+    if (strcmp(name, "TMP_2maboveground") == 0) { *dest = &ctx->forcing.TMP_2maboveground;         return BMI_SUCCESS; }
+    if (strcmp(name, "UGRD_10maboveground") == 0){*dest = &ctx->forcing.UGRD_10maboveground;       return BMI_SUCCESS; }
+    if (strcmp(name, "VGRD_10maboveground") == 0){*dest = &ctx->forcing.VGRD_10maboveground;       return BMI_SUCCESS; }
     if (strcmp(name, "verbosity") == 0)         { *dest = &ctx->options.verbosity;                  return BMI_SUCCESS; }
     /* --- calibration parameters --- */
     double *pp = param_field_ptr(ctx, name);

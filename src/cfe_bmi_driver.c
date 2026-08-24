@@ -302,6 +302,15 @@ int main(int argc, char* argv[])
 
         model->set_value(model, "day_of_year", &forcing.day_of_year);
 
+        // Pass AORC atmospheric forcing for Priestley-Taylor PET and skin temperature
+        model->set_value(model, "TMP_2maboveground",  &forcing.TMP_2maboveground);
+        model->set_value(model, "DSWRF_surface",       &forcing.DSWRF_surface);
+        model->set_value(model, "DLWRF_surface",       &forcing.DLWRF_surface);
+        model->set_value(model, "PRES_surface",        &forcing.PRES_surface);
+        model->set_value(model, "SPFH_2maboveground",  &forcing.SPFH_2maboveground);
+        model->set_value(model, "UGRD_10maboveground",  &forcing.UGRD_10maboveground);
+        model->set_value(model, "VGRD_10maboveground",  &forcing.VGRD_10maboveground);
+
         // get from BMI or trap the initial storage iff known
         if(t==0) {
             model->get_value(model, "timestep_storage_start_m", &timestep_storage_start_m);

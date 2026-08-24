@@ -852,7 +852,8 @@ static int expected_nbytes_for_var(const char* name, int grid_id)
             /* scalar: int or double */
             if (strcmp(name, "state_current_timestep") == 0 ||
                 strcmp(name, "config_simulate_discrete_soil_moisture") == 0 ||
-                strcmp(name, "verbosity") == 0)
+                strcmp(name, "verbosity") == 0 ||
+                strcmp(name, "day_of_year") == 0)
                 return (int)sizeof(int);
             return (int)sizeof(double);
         case 1: return TEST_NDISC * (int)sizeof(double);
@@ -1255,7 +1256,7 @@ int test_get_var_units(TestFixture* fixture)
         "-",    /* soil_moisture_theta_2 */
         "-",    /* soil_moisture_theta_3 */
         "-",    /* soil_moisture_theta_4 */
-        /* 3 inputs */
+        /* 3 inputs (AORC fields omitted when PT/soil-evap disabled) */
         "m s-1",    /* rainfall_depth_m */
         "m s-1",    /* et_potential_m */
         "-"         /* ice_fraction */

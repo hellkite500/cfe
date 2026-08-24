@@ -40,7 +40,7 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         "soil_moisture_theta_2",
         "soil_moisture_theta_3",
         "soil_moisture_theta_4",
-        /* 3 inputs (model forcing) */
+        /* 3 inputs (PT and soil evap disabled in test config; AORC fields omitted) */
         "rainfall_depth_m",
         "et_potential_m",
         "ice_fraction"
@@ -139,8 +139,10 @@ char** get_all_bmi_variable_names(Bmi* bmi_model, int* output_var_count, int* in
 void get_arbitrary_input_var_values(const unsigned int example_case, double current_model_time, double* value_array) {
     // For now, use the same simple group of values for everything
     // TODO: might need to confirm the validity (or the ideal-ness) of these values further
-    /* v3: rainfall_depth_m, et_potential_m, ice_fraction */
-    double arbitrary_input_var_values[EXPECTED_INPUT_VAR_COUNT] = {0.001, 0.0001, 0.0};
+    /* v3 with AORC disabled: rainfall_depth_m, et_potential_m, ice_fraction */
+    double arbitrary_input_var_values[EXPECTED_INPUT_VAR_COUNT] = {
+        0.001, 0.0001, 0.0
+    };
     for (int i = 0; i < EXPECTED_INPUT_VAR_COUNT; i++)
         value_array[i] = arbitrary_input_var_values[i];
 }
