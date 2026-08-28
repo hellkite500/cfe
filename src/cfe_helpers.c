@@ -1301,6 +1301,7 @@ int cfe_resync_derived_params(cfe_parameters_struct* p,
     if (o->simulate_discrete_soil_moisture) {
         s->soil_parameters.theta_sat           = p->effective_porosity;
         s->soil_parameters.theta_fc            = p->field_capacity_moisture_content;
+        s->soil_parameters.theta_wp            = p->wilting_point;
         s->soil_parameters.theta_aet_eq_pet    = p->field_capacity_moisture_content;
         s->soil_parameters.K_sat_cm_per_h      = p->ksat_m_per_s * 360000.0;
         s->soil_parameters.phi_sat_cm          = p->sat_capillary_head_m * 100.0;
