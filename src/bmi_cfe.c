@@ -49,9 +49,11 @@ static const char* input_var_names[] = {
     "SPFH_2maboveground",
     "TMP_2maboveground",
     "UGRD_10maboveground",
-    "VGRD_10maboveground"
+    "VGRD_10maboveground",
+    "param_catchment_vegetated_fraction",
+    "bare_soil_rsurf_exp"
 };
-static const int INPUT_VAR_NAME_COUNT = 11;
+static const int INPUT_VAR_NAME_COUNT = 13;
 
 /* --- outputs --- */
 static const char* output_var_names[] = {
@@ -94,9 +96,16 @@ static const char* output_var_names[] = {
     "soil_moisture_theta_1",                    /* 23 */
     "soil_moisture_theta_2",                    /* 24 */
     "soil_moisture_theta_3",                    /* 25 */
-    "soil_moisture_theta_4"                     /* 26 */
+    "soil_moisture_theta_4",                    /* 26 */
+
+    /* Detailed flux breakdown */
+    "bare_soil_evaporation_m",                  /* 27 */
+    "impervious_runoff_m",                      /* 28 */
+    "pervious_runoff_m",                        /* 29 */
+    "surface_routed_to_outlet_m",               /* 30 */
+    "lateral_flow_generated_m"                  /* 31 */
 };
-static const int OUTPUT_VAR_NAME_COUNT = 27;
+static const int OUTPUT_VAR_NAME_COUNT = 32;
 
 /* --- calibration parameters (get_value / set_value / get_value_ptr) --- */
 static const char* param_var_names[] = {
@@ -342,7 +351,12 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
         strcmp(name, "timestep_storage_end_m")   == 0 ||
         strcmp(name, "potential_et_m")          == 0 ||
         strcmp(name, "giuh_outflow_m")          == 0 ||
-        strcmp(name, "soil_to_gw_percolation_flux_m") == 0) {
+        strcmp(name, "soil_to_gw_percolation_flux_m") == 0 ||
+        strcmp(name, "bare_soil_evaporation_m") == 0 ||
+        strcmp(name, "impervious_runoff_m") == 0 ||
+        strcmp(name, "pervious_runoff_m") == 0 ||
+        strcmp(name, "surface_routed_to_outlet_m") == 0 ||
+        strcmp(name, "lateral_flow_generated_m") == 0) {
         strcpy(units, "m");
     }
     else if (strcmp(name, "state_soil_moisture_theta") == 0 ||
@@ -413,8 +427,12 @@ static int Get_var_units(Bmi *self, const char *name, char *units) {
              strcmp(name, "gw_discharge_exponent") == 0 ||
              strcmp(name, "Xinanjiang_shape_b") == 0 ||
              strcmp(name, "Xinanjiang_shape_x") == 0 ||
-             strcmp(name, "Priestley_Taylor_alpha") == 0) {
+             strcmp(name, "Priestley_Taylor_alpha") == 0 ||
+             strcmp(name, "bare_soil_rsurf_exp") == 0) {
         strcpy(units, "-");  /* dimensionless exponents and coefficients */
+    }
+    else if (strcmp(name, "param_catchment_vegetated_fraction") == 0) {
+        strcpy(units, "-");
     }
     else {
         return BMI_FAILURE;
@@ -641,6 +659,11 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "potential_et_m") == 0)           { *dest = &ctx->last_outputs.potential_et_m;             return BMI_SUCCESS; }
     if (strcmp(name, "giuh_outflow_m") == 0)           { *dest = &ctx->last_outputs.giuh_outflow_m;            return BMI_SUCCESS; }
     if (strcmp(name, "soil_to_gw_percolation_flux_m") == 0) { *dest = &ctx->last_outputs.soil_to_gw_percolation_flux_m; return BMI_SUCCESS; }
+    if (strcmp(name, "bare_soil_evaporation_m") == 0)      { *dest = &ctx->last_outputs.bare_soil_evaporation_m;      return BMI_SUCCESS; }
+    if (strcmp(name, "impervious_runoff_m") == 0)           { *dest = &ctx->last_outputs.impervious_runoff_m;          return BMI_SUCCESS; }
+    if (strcmp(name, "pervious_runoff_m") == 0)             { *dest = &ctx->last_outputs.pervious_runoff_m;            return BMI_SUCCESS; }
+    if (strcmp(name, "surface_routed_to_outlet_m") == 0)    { *dest = &ctx->last_outputs.surface_routed_to_outlet_m;   return BMI_SUCCESS; }
+    if (strcmp(name, "lateral_flow_generated_m") == 0)      { *dest = &ctx->last_outputs.lateral_flow_generated_m;     return BMI_SUCCESS; }
 
     /* --- per-layer DSBM soil moisture scalars --- */
     if (strcmp(name, "soil_moisture_theta_1") == 0) { *dest = &ctx->state.soil_discrete_storage_theta[0]; return BMI_SUCCESS; }
@@ -665,6 +688,8 @@ static int Get_value_ptr(Bmi *self, const char *name, void **dest) {
     if (strcmp(name, "TMP_2maboveground") == 0) { *dest = &ctx->forcing.TMP_2maboveground;         return BMI_SUCCESS; }
     if (strcmp(name, "UGRD_10maboveground") == 0){*dest = &ctx->forcing.UGRD_10maboveground;       return BMI_SUCCESS; }
     if (strcmp(name, "VGRD_10maboveground") == 0){*dest = &ctx->forcing.VGRD_10maboveground;       return BMI_SUCCESS; }
+    if (strcmp(name, "param_catchment_vegetated_fraction") == 0) { *dest = &ctx->parameters.catchment_vegetated_fraction; return BMI_SUCCESS; }
+    if (strcmp(name, "bare_soil_rsurf_exp") == 0)                { *dest = &ctx->parameters.bare_soil_rsurf_exp;          return BMI_SUCCESS; }
     if (strcmp(name, "verbosity") == 0)         { *dest = &ctx->options.verbosity;                  return BMI_SUCCESS; }
     /* --- calibration parameters --- */
     double *pp = param_field_ptr(ctx, name);
@@ -739,8 +764,23 @@ static int Set_value(Bmi *self, const char *name, void *src) {
         CONTEXT(self)->params_dirty = 1;
         return BMI_SUCCESS;
     }
+    /* Vegetated fraction: must re-derive bare_soil_fraction */
+    if (strcmp(name, "param_catchment_vegetated_fraction") == 0) {
+        double value = *(double*)src;
+        if (value < 0.0 || value > 1.0) return BMI_FAILURE;
+        CONTEXT(self)->parameters.catchment_vegetated_fraction = value;
+        return (update_catchment_land_cover_fractions(&CONTEXT(self)->parameters) == 0)
+               ? BMI_SUCCESS : BMI_FAILURE;
+    }
+    /* Bare-soil surface resistance exponent (Sakaguchi & Zeng) */
+    if (strcmp(name, "bare_soil_rsurf_exp") == 0) {
+        double value = *(double*)src;
+        if (value <= 0.0) return BMI_FAILURE;
+        CONTEXT(self)->parameters.bare_soil_rsurf_exp = value;
+        return BMI_SUCCESS;
+    }
 
-    /* All other variables: delegate through get_value_ptr */
+    /* All other scalars: delegate through get_value_ptr */
     void *ptr = NULL;
     if (Get_value_ptr(self, name, &ptr) != BMI_SUCCESS || ptr == NULL)
         return BMI_FAILURE;

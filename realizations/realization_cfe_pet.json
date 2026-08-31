@@ -30,7 +30,9 @@
                                 "uses_forcing_file": false,
                                 "model_params": {
                                     "sloth_ice_fraction(1,double,1,node)": 0.0,
-                                    "sloth_smp(1,double,1,node)": 0.0
+                                    "sloth_smp(1,double,1,node)": 0.0,
+                                    "sloth_vegetated_fraction(1,double,1,node)": 0.70,
+                                    "sloth_rsurf_exp(1,double,1,node)": 5.0
                                 }
                             }
                         },
@@ -61,7 +63,9 @@
                                     "et_potential_m": "water_potential_evaporation_flux",
                                     "rainfall_depth_m": "APCP_surface",
                                     "ice_fraction": "sloth_ice_fraction",
-                                    "soil_moisture_profile": "sloth_smp"
+                                    "soil_moisture_profile": "sloth_smp",
+                                    "param_catchment_vegetated_fraction": "sloth_vegetated_fraction",
+                                    "bare_soil_rsurf_exp": "sloth_rsurf_exp"
                                 },
                                 "uses_forcing_file": false
                             }

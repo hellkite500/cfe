@@ -105,6 +105,10 @@ void check_dsbm_local_volume_balance(
 /* Output writing helper functions */
 const char* get_delimiter_string(const char* delimiter_name);
 
+/* Re-derive catchment_bare_soil_fraction from vegetated + impervious fractions.
+ * Call after any BMI set_value on catchment_vegetated_fraction or impervious. */
+int update_catchment_land_cover_fractions(cfe_parameters_struct* parameters);
+
 /* Resync derived quantities and cached copies after calibration parameter changes.
  * Call once before the first update after any set_value on a calibration parameter. */
 int cfe_resync_derived_params(cfe_parameters_struct* params,

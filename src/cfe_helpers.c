@@ -454,7 +454,7 @@ int validate_required_parameters(const CFE_CONFIG* cfg, const int verbosity) {
 
 
 
-static int update_catchment_land_cover_fractions(cfe_parameters_struct* parameters)
+int update_catchment_land_cover_fractions(cfe_parameters_struct* parameters)
 {
     double land_cover_fraction_sum;
 

@@ -12,7 +12,7 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
     fixture->cfg_file = cfg_file;
 
     char* var_names[EXPECTED_TOTAL_VAR_COUNT] = {
-        /* 27 outputs */
+        /* 32 outputs */
         "discharge_m",
         "surface_runoff_m",
         "lateral_flow_m",
@@ -40,10 +40,17 @@ TestFixture* setup(const unsigned int example_case, const char* cfg_file)
         "soil_moisture_theta_2",
         "soil_moisture_theta_3",
         "soil_moisture_theta_4",
-        /* 3 inputs (PT and soil evap disabled in test config; AORC fields omitted) */
+        "bare_soil_evaporation_m",
+        "impervious_runoff_m",
+        "pervious_runoff_m",
+        "surface_routed_to_outlet_m",
+        "lateral_flow_generated_m",
+        /* 5 inputs (PT and soil evap disabled in test config; AORC fields omitted) */
         "rainfall_depth_m",
         "et_potential_m",
-        "ice_fraction"
+        "ice_fraction",
+        "param_catchment_vegetated_fraction",
+        "bare_soil_rsurf_exp"
     };
 
     fixture->expected_output_and_input_var_names = allocate_array_of_strings(EXPECTED_TOTAL_VAR_COUNT, BMI_MAX_VAR_NAME);
@@ -139,9 +146,11 @@ char** get_all_bmi_variable_names(Bmi* bmi_model, int* output_var_count, int* in
 void get_arbitrary_input_var_values(const unsigned int example_case, double current_model_time, double* value_array) {
     // For now, use the same simple group of values for everything
     // TODO: might need to confirm the validity (or the ideal-ness) of these values further
-    /* v3 with AORC disabled: rainfall_depth_m, et_potential_m, ice_fraction */
+    /* v3 with AORC disabled: rainfall_depth_m, et_potential_m, ice_fraction,
+     *     param_catchment_vegetated_fraction, bare_soil_rsurf_exp */
     double arbitrary_input_var_values[EXPECTED_INPUT_VAR_COUNT] = {
-        0.001, 0.0001, 0.0
+        0.001, 0.0001, 0.0,
+        0.7, 5.0
     };
     for (int i = 0; i < EXPECTED_INPUT_VAR_COUNT; i++)
         value_array[i] = arbitrary_input_var_values[i];

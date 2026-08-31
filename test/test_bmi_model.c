@@ -1228,7 +1228,7 @@ int test_get_var_units(TestFixture* fixture)
     /* v3 expected units — codified so accidental changes are caught.
      * Order must match the variable names in bmi_test_utils.c setup(). */
     char* expected_units[EXPECTED_TOTAL_VAR_COUNT] = {
-        /* 27 outputs */
+        /* 32 outputs */
         "m",    /* discharge_m */
         "m",    /* surface_runoff_m */
         "m",    /* lateral_flow_m */
@@ -1256,10 +1256,17 @@ int test_get_var_units(TestFixture* fixture)
         "-",    /* soil_moisture_theta_2 */
         "-",    /* soil_moisture_theta_3 */
         "-",    /* soil_moisture_theta_4 */
-        /* 3 inputs (AORC fields omitted when PT/soil-evap disabled) */
+        "m",    /* bare_soil_evaporation_m */
+        "m",    /* impervious_runoff_m */
+        "m",    /* pervious_runoff_m */
+        "m",    /* surface_routed_to_outlet_m */
+        "m",    /* lateral_flow_generated_m */
+        /* 5 inputs (AORC fields omitted when PT/soil-evap disabled) */
         "m s-1",    /* rainfall_depth_m */
         "m s-1",    /* et_potential_m */
-        "-"         /* ice_fraction */
+        "-",        /* ice_fraction */
+        "-",        /* param_catchment_vegetated_fraction */
+        "-"         /* bare_soil_rsurf_exp */
     };
 
     for (int i = 0; i < EXPECTED_TOTAL_VAR_COUNT; i++) {

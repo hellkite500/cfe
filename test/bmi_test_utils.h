@@ -6,9 +6,9 @@
 
 /* Define some expected constants */
 #define EXPECTED_COMPONENT_NAME "CFE - Conceptual Functional Equivalent"
-#define EXPECTED_INPUT_VAR_COUNT 3
-#define EXPECTED_OUTPUT_VAR_COUNT 27
-#define EXPECTED_TOTAL_VAR_COUNT 30
+#define EXPECTED_INPUT_VAR_COUNT 5
+#define EXPECTED_OUTPUT_VAR_COUNT 32
+#define EXPECTED_TOTAL_VAR_COUNT 37
 #define EXPECTED_MODULE_START_TIME 0.0  // Assume the standard here
 #define EXPECTED_TIME_STEP_SIZE 3600.0   // Assume expected time step is 1 hour, in seconds
 
