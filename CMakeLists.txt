@@ -113,7 +113,9 @@ target_include_directories(test_bmi_model PUBLIC ${PROJECT_SOURCE_DIR}/include t
 target_link_libraries(test_bmi_model cfebmi)
 target_compile_definitions(test_bmi_model PUBLIC
     BMI_INIT_CONFIG_EX_1="${PROJECT_SOURCE_DIR}/configs/cfe_config_cat_87_pass.cf3"
-    BMI_INIT_CONFIG_DSBM="${PROJECT_SOURCE_DIR}/configs/clean_config.cf3")
+    BMI_INIT_CONFIG_DSBM="${PROJECT_SOURCE_DIR}/configs/clean_config.cf3"
+    BMI_INIT_CONFIG_PT="${PROJECT_SOURCE_DIR}/configs/test_pt_enabled.cf3"
+    BMI_INIT_CONFIG_PT_INTERNAL_DOY="${PROJECT_SOURCE_DIR}/configs/test_pt_internal_doy.cf3")
 
 # For the 'test_bmi_model' executable, the test example can be explicitly passed (although for now there is only 1)
 add_test(NAME test_initialize_1 COMMAND test_bmi_model test_initialize 1)
@@ -174,6 +176,7 @@ add_test(NAME test_derived_quantities_resync COMMAND test_bmi_model test_derived
 add_test(NAME test_dsbm_soil_params_resync COMMAND test_bmi_model test_dsbm_soil_params_resync)
 add_test(NAME test_calibration_params_affect_output COMMAND test_bmi_model test_calibration_params_affect_output)
 add_test(NAME test_calibration_params_affect_output_dsbm COMMAND test_bmi_model test_calibration_params_affect_output_dsbm)
+add_test(NAME test_conditional_inputs COMMAND test_bmi_model test_conditional_inputs)
 # End test_bmi_model tests
 ####################################################################################################################
 

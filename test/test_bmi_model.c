@@ -2419,6 +2419,106 @@ int test_calibration_params_affect_output_dsbm(TestFixture* fixture)
     return TEST_RETURN_CODE_PASS;
 }
 
+/*
+ * Helper: initialize a fresh Bmi with the given config, query input count
+ * and names, finalize, and check against expectations.
+ * Returns 0 on success, 1 on failure.
+ */
+static int check_input_vars(const char *cfg, int expected_count,
+                            const char *expected_names[], const char *label)
+{
+    Bmi m_storage, *m = &m_storage;
+    register_bmi_cfe(m);
+
+    if (m->initialize(m, cfg) != BMI_SUCCESS) {
+        printf("\n  [%s] Failed to initialize", label);
+        return 1;
+    }
+
+    int count = -1;
+    m->get_input_item_count(m, &count);
+    if (count != expected_count) {
+        printf("\n  [%s] input count: got %d, want %d", label, count, expected_count);
+        m->finalize(m);
+        return 1;
+    }
+
+    char **names = allocate_array_of_strings(count, BMI_MAX_VAR_NAME);
+    m->get_input_var_names(m, names);
+
+    int failures = 0;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(names[i], expected_names[i]) != 0) {
+            printf("\n  [%s] input[%d]: got '%s', want '%s'",
+                   label, i, names[i], expected_names[i]);
+            failures++;
+        }
+    }
+
+    free_array_of_strings(names, count);
+    m->finalize(m);
+    return failures;
+}
+
+/*
+ * test_conditional_inputs
+ *
+ * Verify that Get_input_item_count / Get_input_var_names respond correctly
+ * to the model configuration:
+ *
+ *   1. PT disabled, soil evap disabled  → 5 inputs (base set)
+ *   2. PT+soil_evap enabled             → 13 inputs (base + AORC + day_of_year)
+ *   3. PT+soil_evap + internal DOY      → 12 inputs (AORC but no day_of_year)
+ */
+int test_conditional_inputs(TestFixture* fixture)
+{
+    int failures = 0;
+
+    /* Case 1: PT disabled (the default unit test config) — 5 inputs */
+    {
+        const char *expected[] = {
+            "rainfall_depth_m", "et_potential_m", "ice_fraction",
+            "param_catchment_vegetated_fraction", "bare_soil_rsurf_exp"
+        };
+        failures += check_input_vars(
+            fixture->cfg_file, 5, expected, "pt_disabled");
+    }
+
+    /* Case 2: PT + soil evap enabled, external day_of_year — 13 inputs */
+    {
+        const char *expected[] = {
+            "rainfall_depth_m", "et_potential_m", "ice_fraction",
+            "day_of_year",
+            "DLWRF_surface", "DSWRF_surface", "PRES_surface",
+            "SPFH_2maboveground", "TMP_2maboveground",
+            "UGRD_10maboveground", "VGRD_10maboveground",
+            "param_catchment_vegetated_fraction", "bare_soil_rsurf_exp"
+        };
+        failures += check_input_vars(
+            BMI_INIT_CONFIG_PT, 13, expected, "pt_enabled");
+    }
+
+    /* Case 3: PT + soil evap + internal day_of_year — 12 inputs */
+    {
+        const char *expected[] = {
+            "rainfall_depth_m", "et_potential_m", "ice_fraction",
+            "DLWRF_surface", "DSWRF_surface", "PRES_surface",
+            "SPFH_2maboveground", "TMP_2maboveground",
+            "UGRD_10maboveground", "VGRD_10maboveground",
+            "param_catchment_vegetated_fraction", "bare_soil_rsurf_exp"
+        };
+        failures += check_input_vars(
+            BMI_INIT_CONFIG_PT_INTERNAL_DOY, 12, expected, "pt_internal_doy");
+    }
+
+    if (failures > 0) {
+        printf("\n  %d conditional input check(s) failed", failures);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    printf("\n  All 3 conditional input configurations verified");
+    return TEST_RETURN_CODE_PASS;
+}
+
 int main(int argc, const char* argv[])
 {
     char* config_file;
@@ -2547,6 +2647,8 @@ int main(int argc, const char* argv[])
         result = test_calibration_params_affect_output(fixture);
     else if (strcmp(argv[1], "test_calibration_params_affect_output_dsbm") == 0)
         result = test_calibration_params_affect_output_dsbm(fixture);
+    else if (strcmp(argv[1], "test_conditional_inputs") == 0)
+        result = test_conditional_inputs(fixture);
     else
         printf("\nUnexpected test function %s\n", argv[1]);
 
