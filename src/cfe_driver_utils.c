@@ -1208,6 +1208,9 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
             cfg->control_soil_use_lookup_table_num_points);
     fprintf(hotstart_fptr, "control_soil_simulate_freeze_thaw_true_false=%s\n",
             cfg->control_soil_simulate_freeze_thaw_true_false ? "TRUE" : "FALSE");
+    if (strlen(cfg->simulation_start_date) > 0) {
+        fprintf(hotstart_fptr, "control_simulation_start_date=%s\n", cfg->simulation_start_date);
+    }
     fprintf(hotstart_fptr, "\n");
 
     // Catchment Characteristics
@@ -1233,6 +1236,8 @@ int write_hotstart_config(const CFE_CONFIG* cfg,
     if (cfg->cat_area_km2 != 0.0) {
         fprintf(hotstart_fptr, "catchment_area_km2=%e[km2]\n", cfg->cat_area_km2);
     }
+    fprintf(hotstart_fptr, "catchment_impervious_fraction_0-1=%.6f[]\n", cfg->cat_impervious_fraction);
+    fprintf(hotstart_fptr, "catchment_forested_fraction_0-1=%.6f[]\n", cfg->catchment_vegetated_fraction);
     fprintf(hotstart_fptr, "\n");
 
     // Soil Parameters

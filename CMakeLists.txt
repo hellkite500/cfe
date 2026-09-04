@@ -172,6 +172,7 @@ add_test(NAME test_get_grid_z_1 COMMAND test_bmi_model test_get_grid_z)
 add_test(NAME test_serialization_metadata_1 COMMAND test_bmi_model test_serialization_metadata)
 add_test(NAME test_serialization_round_trip_1 COMMAND test_bmi_model test_serialization_round_trip)
 add_test(NAME test_serialization_round_trip_dsbm_1 COMMAND test_bmi_model test_serialization_round_trip_dsbm)
+add_test(NAME test_serialization_round_trip_pt_1 COMMAND test_bmi_model test_serialization_round_trip_pt)
 add_test(NAME test_derived_quantities_resync COMMAND test_bmi_model test_derived_quantities_resync)
 add_test(NAME test_dsbm_soil_params_resync COMMAND test_bmi_model test_dsbm_soil_params_resync)
 add_test(NAME test_calibration_params_affect_output COMMAND test_bmi_model test_calibration_params_affect_output)
@@ -240,6 +241,16 @@ add_test(NAME restart_standalone_v3
         1e-10
 )
 set_tests_properties(restart_standalone_v3 PROPERTIES LABELS "integration")
+
+add_test(NAME restart_standalone_v3_pt
+    COMMAND bash ${RESTART_TEST_SCRIPT}
+        $<TARGET_FILE:cfe_main_driver>
+        ${PROJECT_SOURCE_DIR}/configs/test_pt_enabled.cf3
+        ${FORCING_FILE}
+        360
+        1e-10
+)
+set_tests_properties(restart_standalone_v3_pt PROPERTIES LABELS "integration")
 # End integration tests
 ####################################################################################################################
 

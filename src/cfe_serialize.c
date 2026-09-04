@@ -23,7 +23,13 @@
  *  [8*S]  double[S] nash_subsurface_storage_m
  *   [4]   int       n_giuh G
  *  [8*G]  double[G] giuh_queue_m
- *  Total: 36 + 8*(D+S+G) bytes  (default: 36 + 8*(4+2+G))
+ *   [8]   double    skin_temperature_k
+ *   [8]   double    upper_soil_temperature_k
+ *   [8]   double    estimated_annual_air_temp_k
+ *   [8]   double    air_temp_time_integral_k_s
+ *   [8]   double    accumulated_time_s
+ *   [4]   int       pet_initialized
+ *  Total: 80 + 8*(D+S+G) bytes  (default: 80 + 8*(4+2+G))
  */
 
 #include <stdio.h>
@@ -67,8 +73,16 @@ void cfe_serialize_create(CFE_Model_Context *ctx) {
                             MAX_NUM_SUBSURFACE_NASH_CASCADE);
 
     p = ser_write_i32(p, ctx->parameters.giuh_num_ordinates);
-    ser_write_f64_array(p, ctx->state.giuh_queue_m,
+    p = ser_write_f64_array(p, ctx->state.giuh_queue_m,
                         ctx->parameters.giuh_num_ordinates);
+
+    /* PET temperature state */
+    p = ser_write_f64(p, ctx->state.pet_temperature_state.skin_temperature_k);
+    p = ser_write_f64(p, ctx->state.pet_temperature_state.upper_soil_temperature_k);
+    p = ser_write_f64(p, ctx->state.pet_temperature_state.estimated_annual_air_temperature_k);
+    p = ser_write_f64(p, ctx->state.pet_temperature_state.air_temperature_time_integral_k_s);
+    p = ser_write_f64(p, ctx->state.pet_temperature_state.accumulated_time_s);
+    ser_write_i32(p, ctx->state.pet_temperature_state.initialized);
 }
 
 int cfe_serialize_deserialize(CFE_Model_Context *ctx, const char *src) {
@@ -129,7 +143,17 @@ int cfe_serialize_deserialize(CFE_Model_Context *ctx, const char *src) {
                 n_giuh, ctx->parameters.giuh_num_ordinates);
         return BMI_FAILURE;
     }
-    ser_read_f64_array(p, ctx->state.giuh_queue_m, n_giuh);
+    p = ser_read_f64_array(p, ctx->state.giuh_queue_m, n_giuh);
+
+    /* PET temperature state */
+    p = ser_read_f64(p, &ctx->state.pet_temperature_state.skin_temperature_k);
+    p = ser_read_f64(p, &ctx->state.pet_temperature_state.upper_soil_temperature_k);
+    p = ser_read_f64(p, &ctx->state.pet_temperature_state.estimated_annual_air_temperature_k);
+    p = ser_read_f64(p, &ctx->state.pet_temperature_state.air_temperature_time_integral_k_s);
+    p = ser_read_f64(p, &ctx->state.pet_temperature_state.accumulated_time_s);
+    int pet_init;
+    p = ser_read_i32(p, &pet_init);
+    ctx->state.pet_temperature_state.initialized = pet_init;
 
     /* Sync DSBM derived state from restored theta values.
      * cfe() reads soil_state_in.theta_in before DSBM updates it, so stale

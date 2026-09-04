@@ -2046,6 +2046,211 @@ int test_serialization_round_trip_dsbm(TestFixture* fixture)
 }
 
 /*
+ * test_serialization_round_trip_pt
+ *
+ * Same protocol as test_serialization_round_trip but uses the PT-enabled
+ * config with AORC forcings, exercising the PET temperature state
+ * (skin_temperature_k, upper_soil_temperature_k, etc.) round-trip.
+ */
+int test_serialization_round_trip_pt(TestFixture* fixture)
+{
+    (void)fixture;
+    Bmi m_storage, *m = &m_storage;
+    register_bmi_cfe(m);
+
+    int bmi_status = m->initialize(m, BMI_INIT_CONFIG_PT);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to initialize PT config for round-trip test");
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    double rain = 0.005 / 3600.0, pet = 0.0;
+    double temp_k = 287.5, dlwrf = 361.2, dswrf = 200.0;
+    double pres = 100530.0, spfh = 0.0105, ugrd = -2.6, vgrd = 0.0;
+    double veg_frac = 0.70, rsurf_exp = 5.0;
+    int trigger = 1;
+
+    /* --- Phase 1: advance 5 steps with AORC forcings --- */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->set_value(m, "TMP_2maboveground", &temp_k);
+        m->set_value(m, "DLWRF_surface", &dlwrf);
+        m->set_value(m, "DSWRF_surface", &dswrf);
+        m->set_value(m, "PRES_surface", &pres);
+        m->set_value(m, "SPFH_2maboveground", &spfh);
+        m->set_value(m, "UGRD_10maboveground", &ugrd);
+        m->set_value(m, "VGRD_10maboveground", &vgrd);
+        m->set_value(m, "param_catchment_vegetated_fraction", &veg_frac);
+        m->set_value(m, "bare_soil_rsurf_exp", &rsurf_exp);
+        if (m->update(m) != BMI_SUCCESS) {
+            printf("\nUpdate failed at step %d (phase 1)", t);
+            m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* --- Phase 2: capture state --- */
+    bmi_status = m->set_value(m, NGEN_SERIALIZATION_CREATE, &trigger);
+    if (bmi_status != BMI_SUCCESS) { printf("\nSetValue(create) failed"); m->finalize(m); return TEST_RETURN_CODE_FAIL; }
+
+    int buf_size = 0;
+    m->get_value(m, NGEN_SERIALIZATION_SIZE, &buf_size);
+    char *saved_buf = (char*)malloc(buf_size);
+    m->get_value(m, NGEN_SERIALIZATION_STATE, saved_buf);
+    m->set_value(m, NGEN_SERIALIZATION_FREE, &trigger);
+
+    /* Snapshot A */
+    double snap_a_soil = 0, snap_a_gw = 0;
+    double snap_a_theta[NDISC] = {0};
+    double snap_a_nash[MAX_NUM_SUBSURFACE_NASH_CASCADE] = {0};
+    double snap_a_giuh[MAX_NUM_GIUH_ORDINATES] = {0};
+    m->get_value(m, "state_soil_storage_m", &snap_a_soil);
+    m->get_value(m, "state_gw_storage_m", &snap_a_gw);
+    m->get_value(m, "state_soil_moisture_theta", snap_a_theta);
+    m->get_value(m, "state_nash_subsurface_storage", snap_a_nash);
+    m->get_value(m, "state_giuh_queue", snap_a_giuh);
+
+    /* --- Phase 3: advance 5 more steps (mutate state) --- */
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->set_value(m, "TMP_2maboveground", &temp_k);
+        m->set_value(m, "DLWRF_surface", &dlwrf);
+        m->set_value(m, "DSWRF_surface", &dswrf);
+        m->set_value(m, "PRES_surface", &pres);
+        m->set_value(m, "SPFH_2maboveground", &spfh);
+        m->set_value(m, "UGRD_10maboveground", &ugrd);
+        m->set_value(m, "VGRD_10maboveground", &vgrd);
+        m->set_value(m, "param_catchment_vegetated_fraction", &veg_frac);
+        m->set_value(m, "bare_soil_rsurf_exp", &rsurf_exp);
+        m->update(m);
+    }
+
+    /* --- Phase 4: restore --- */
+    bmi_status = m->set_value(m, NGEN_SERIALIZATION_STATE, saved_buf);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nSetValue(state) restore failed");
+        free(saved_buf); m->finalize(m);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    /* Snapshot B: verify bit-exact */
+    double snap_b_soil = 0, snap_b_gw = 0;
+    double snap_b_theta[NDISC] = {0};
+    double snap_b_nash[MAX_NUM_SUBSURFACE_NASH_CASCADE] = {0};
+    double snap_b_giuh[MAX_NUM_GIUH_ORDINATES] = {0};
+    m->get_value(m, "state_soil_storage_m", &snap_b_soil);
+    m->get_value(m, "state_gw_storage_m", &snap_b_gw);
+    m->get_value(m, "state_soil_moisture_theta", snap_b_theta);
+    m->get_value(m, "state_nash_subsurface_storage", snap_b_nash);
+    m->get_value(m, "state_giuh_queue", snap_b_giuh);
+
+    if (snap_a_soil != snap_b_soil || snap_a_gw != snap_b_gw) {
+        printf("\nPT scalar state mismatch: soil=%.15e vs %.15e, gw=%.15e vs %.15e",
+               snap_a_soil, snap_b_soil, snap_a_gw, snap_b_gw);
+        free(saved_buf); m->finalize(m);
+        return TEST_RETURN_CODE_FAIL;
+    }
+    for (int i = 0; i < NDISC; i++) {
+        if (snap_a_theta[i] != snap_b_theta[i]) {
+            printf("\nPT theta[%d] mismatch: %.15e vs %.15e", i, snap_a_theta[i], snap_b_theta[i]);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+    for (int i = 0; i < MAX_NUM_SUBSURFACE_NASH_CASCADE; i++) {
+        if (snap_a_nash[i] != snap_b_nash[i]) {
+            printf("\nPT nash[%d] mismatch", i);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+    for (int i = 0; i < MAX_NUM_GIUH_ORDINATES; i++) {
+        if (snap_a_giuh[i] != snap_b_giuh[i]) {
+            printf("\nPT giuh[%d] mismatch", i);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    /* --- Phase 5: run 5 steps from restored state --- */
+    double q_restored[5] = {0};
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->set_value(m, "TMP_2maboveground", &temp_k);
+        m->set_value(m, "DLWRF_surface", &dlwrf);
+        m->set_value(m, "DSWRF_surface", &dswrf);
+        m->set_value(m, "PRES_surface", &pres);
+        m->set_value(m, "SPFH_2maboveground", &spfh);
+        m->set_value(m, "UGRD_10maboveground", &ugrd);
+        m->set_value(m, "VGRD_10maboveground", &vgrd);
+        m->set_value(m, "param_catchment_vegetated_fraction", &veg_frac);
+        m->set_value(m, "bare_soil_rsurf_exp", &rsurf_exp);
+        m->update(m);
+        m->get_value(m, "discharge_m", &q_restored[t]);
+    }
+
+    /* --- Phase 6: fresh continuous run --- */
+    m->finalize(m);
+    bmi_status = m->initialize(m, BMI_INIT_CONFIG_PT);
+    if (bmi_status != BMI_SUCCESS) {
+        printf("\nFailed to re-initialize PT for continuous comparison");
+        free(saved_buf);
+        return TEST_RETURN_CODE_FAIL;
+    }
+
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->set_value(m, "TMP_2maboveground", &temp_k);
+        m->set_value(m, "DLWRF_surface", &dlwrf);
+        m->set_value(m, "DSWRF_surface", &dswrf);
+        m->set_value(m, "PRES_surface", &pres);
+        m->set_value(m, "SPFH_2maboveground", &spfh);
+        m->set_value(m, "UGRD_10maboveground", &ugrd);
+        m->set_value(m, "VGRD_10maboveground", &vgrd);
+        m->set_value(m, "param_catchment_vegetated_fraction", &veg_frac);
+        m->set_value(m, "bare_soil_rsurf_exp", &rsurf_exp);
+        m->update(m);
+    }
+    double q_continuous[5] = {0};
+    for (int t = 0; t < 5; t++) {
+        m->set_value(m, "rainfall_depth_m", &rain);
+        m->set_value(m, "et_potential_m", &pet);
+        m->set_value(m, "TMP_2maboveground", &temp_k);
+        m->set_value(m, "DLWRF_surface", &dlwrf);
+        m->set_value(m, "DSWRF_surface", &dswrf);
+        m->set_value(m, "PRES_surface", &pres);
+        m->set_value(m, "SPFH_2maboveground", &spfh);
+        m->set_value(m, "UGRD_10maboveground", &ugrd);
+        m->set_value(m, "VGRD_10maboveground", &vgrd);
+        m->set_value(m, "param_catchment_vegetated_fraction", &veg_frac);
+        m->set_value(m, "bare_soil_rsurf_exp", &rsurf_exp);
+        m->update(m);
+        m->get_value(m, "discharge_m", &q_continuous[t]);
+    }
+
+    /* --- Phase 7: compare outputs --- */
+    for (int t = 0; t < 5; t++) {
+        if (q_restored[t] != q_continuous[t]) {
+            printf("\nPT discharge mismatch at step %d: restored=%.15e continuous=%.15e",
+                   t, q_restored[t], q_continuous[t]);
+            free(saved_buf); m->finalize(m);
+            return TEST_RETURN_CODE_FAIL;
+        }
+    }
+
+    printf("\n  PT round-trip: %d bytes, state bit-exact, outputs bit-exact over 5 post-restore steps",
+           buf_size);
+
+    free(saved_buf);
+    m->finalize(m);
+    return TEST_RETURN_CODE_PASS;
+}
+
+/*
  * test_derived_quantities_resync
  *
  * Verify that derived quantities (schaake_magic_constant,
@@ -2639,6 +2844,8 @@ int main(int argc, const char* argv[])
         result = test_serialization_round_trip(fixture);
     else if (strcmp(argv[1], "test_serialization_round_trip_dsbm") == 0)
         result = test_serialization_round_trip_dsbm(fixture);
+    else if (strcmp(argv[1], "test_serialization_round_trip_pt") == 0)
+        result = test_serialization_round_trip_pt(fixture);
     else if (strcmp(argv[1], "test_derived_quantities_resync") == 0)
         result = test_derived_quantities_resync(fixture);
     else if (strcmp(argv[1], "test_dsbm_soil_params_resync") == 0)

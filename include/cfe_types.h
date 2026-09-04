@@ -310,7 +310,7 @@ typedef struct {
     int current_time_step;
 
     // Priestley-Taylor soil temperature state
-    cfe_pet_temperature_state_struct pet_temperature_state;
+    cfe_pet_temperature_state_struct pet_temperature_state;  /* [SERIALIZED] */
 } cfe_state_struct;
 
 

@@ -51,7 +51,9 @@
     + sizeof(double)                     /* gw_storage_m */ \
     + sizeof(int)                        /* n_nash_subsurface count */ \
     + MAX_NUM_SUBSURFACE_NASH_CASCADE * sizeof(double)  /* nash_subsurface */ \
-    + sizeof(int))                       /* n_giuh count */
+    + sizeof(int)                        /* n_giuh count */ \
+    + 5 * sizeof(double)                 /* PET temperature state (5 doubles) */ \
+    + sizeof(int))                       /* pet_initialized */
 
 void   cfe_serialize_create(CFE_Model_Context *ctx);
 int    cfe_serialize_deserialize(CFE_Model_Context *ctx, const char *src);
