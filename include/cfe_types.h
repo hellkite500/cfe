@@ -193,6 +193,7 @@ typedef struct {
     char output_value_format[OPTION_STRING_LENGTH];
     char output_path_name[PATH_FILENAME_STRING_LENGTH];
     char output_new_config_filename[PATH_FILENAME_STRING_LENGTH];
+    double epoch_start_seconds;   // Unix epoch of simulation start; 0 = not configured
 } cfe_options_struct;
 
 /* Parameters: physical/empirical constants and arrays (from config) and initial states */
@@ -355,6 +356,7 @@ typedef struct {
     double forest_pet_m;          // forest-fraction PET for root-zone AET pathway
     double bare_soil_aet_m;       // area-weighted bare-soil evaporation [m/timestep]
     int day_of_year;              // 1 through 366
+    int day_of_year_set_externally; // TRUE if set via BMI set_value; suppresses internal calc
 } cfe_forcing_struct;
 
 typedef enum {

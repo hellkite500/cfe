@@ -309,6 +309,9 @@ int parse_cfe_config(const char* filename, CFE_CONFIG* config) {
         else if (string_compare_ignore_case(keyword, "control_verbosity") == 0) {
             config->verbosity = atoi(value_part);
         }
+        else if (string_compare_ignore_case(keyword, "control_simulation_start_date") == 0) {
+            safe_strcpy(config->simulation_start_date, sizeof(config->simulation_start_date), value_part);
+        }
         else if (string_compare_ignore_case(keyword, "soil_depth_m") == 0) {
             config->soil_depth_m = atof(value_part);
             snprintf(config->soil_depth_units, sizeof(config->soil_depth_units), "%s", units);

@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include "cfe_helpers.h"
 #include "parser_helpers.h"
 #include "cfe.h"  // brings in NWM_SOIL_PARAMETERS_STRUCTURE, CONCEPTUAL_RESERVOIR_STRUCTURE, NASH_CASCADE_PARAMETERS_STRUCTURE, rainfall_partitioning_parameters_structure, evapotranspiration_structure, volbal_struct
@@ -55,6 +56,32 @@ int calculate_day_of_year(int year, int month, int day)
     }
 
     return day_of_year;
+}
+
+int day_of_year_from_epoch(double epoch_seconds)
+{
+    time_t t = (time_t)epoch_seconds;
+    struct tm utc;
+    if (gmtime_r(&t, &utc) == NULL)
+        return 1;
+    return utc.tm_yday + 1;
+}
+
+double parse_date_to_epoch(const char *date_str)
+{
+    if (date_str == NULL || date_str[0] == '\0')
+        return 0.0;
+    int y, m, d;
+    if (sscanf(date_str, "%d-%d-%d", &y, &m, &d) != 3)
+        return 0.0;
+    struct tm tm_val = {0};
+    tm_val.tm_year = y - 1900;
+    tm_val.tm_mon  = m - 1;
+    tm_val.tm_mday = d;
+    time_t t = timegm(&tm_val);
+    if (t == (time_t)-1)
+        return 0.0;
+    return (double)t;
 }
 
 // Helper functions
@@ -570,6 +597,7 @@ int map_config_to_parameters_and_options(const CFE_CONFIG* cfg,
     o->time_step_seconds               = (int)(cfg->timestep_h * 3600.0 + 0.5);
     o->num_timesteps                   = cfg->total_timesteps;
     o->verbosity                       = cfg->verbosity;
+    o->epoch_start_seconds             = parse_date_to_epoch(cfg->simulation_start_date);
     o->enable_ET_Priestley_Taylor      = (cfg->et_alpha_pt > 1.0e-03) ? TRUE : FALSE;   // iff alpha_pt not zero or tiny.
     o->enable_freeze_thaw              = cfg->control_soil_simulate_freeze_thaw_true_false;
     o->simulate_discrete_soil_moisture = cfg->control_soil_simulate_discrete_soil_moisture_true_false;

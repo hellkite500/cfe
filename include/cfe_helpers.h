@@ -28,6 +28,8 @@ static inline double m_per_s_to_cm_per_h(double x)  { return x * 360000.0; }
 
 int is_leap_year(int year);
 int calculate_day_of_year(int year, int month, int day);
+int day_of_year_from_epoch(double epoch_seconds);
+double parse_date_to_epoch(const char *date_str);
 
 int is_fabs_less_than_epsilon(double a,double epsilon);
 

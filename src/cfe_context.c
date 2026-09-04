@@ -187,6 +187,13 @@ int cfe_context_update(CFE_Model_Context* ctx)
     
     double dt = (double)ctx->options.time_step_seconds;
 
+    if (!ctx->forcing.day_of_year_set_externally &&
+        ctx->options.epoch_start_seconds > 0.0) {
+        double current_epoch = ctx->options.epoch_start_seconds +
+                               (double)ctx->state.current_time_step * dt;
+        ctx->forcing.day_of_year = day_of_year_from_epoch(current_epoch);
+    }
+
     cfe_update_pet_and_bare_soil_evap(
         &ctx->forcing, &ctx->parameters, &ctx->state, &ctx->options);
 

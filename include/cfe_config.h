@@ -76,6 +76,7 @@ typedef struct CFE_CONFIG
     char   cat_impervious_units[UNIT_STRING_LENGTH];
     int    total_timesteps;
     int    verbosity;
+    char   simulation_start_date[16];
     double et_alpha_pt;
     double soil_depth_m;
     char   soil_depth_units[UNIT_STRING_LENGTH];

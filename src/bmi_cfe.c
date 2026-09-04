@@ -243,6 +243,10 @@ static int needs_aorc_forcing(Bmi *self) {
            CONTEXT(self)->options.simulate_soil_evaporation;
 }
 
+static int has_internal_day_of_year(Bmi *self) {
+    return CONTEXT(self) != NULL && CONTEXT(self)->options.epoch_start_seconds > 0.0;
+}
+
 static int is_aorc_only_input(const char *name) {
     return strcmp(name, "day_of_year") == 0 ||
            strcmp(name, "DLWRF_surface") == 0 ||
@@ -254,11 +258,18 @@ static int is_aorc_only_input(const char *name) {
            strcmp(name, "VGRD_10maboveground") == 0;
 }
 
+static int should_skip_input(Bmi *self, const char *name) {
+    if (!needs_aorc_forcing(self) && is_aorc_only_input(name))
+        return 1;
+    if (has_internal_day_of_year(self) && strcmp(name, "day_of_year") == 0)
+        return 1;
+    return 0;
+}
+
 static int count_skipped_inputs(Bmi *self) {
-    if (needs_aorc_forcing(self)) return 0;
     int skip = 0;
     for (int i = 0; i < INPUT_VAR_NAME_COUNT; i++)
-        if (is_aorc_only_input(input_var_names[i])) skip++;
+        if (should_skip_input(self, input_var_names[i])) skip++;
     return skip;
 }
 
@@ -273,10 +284,9 @@ static int Get_output_item_count(Bmi *self, int *count) {
 }
 
 static int Get_input_var_names(Bmi *self, char **names) {
-    int want_aorc = needs_aorc_forcing(self);
     int j = 0;
     for (int i = 0; i < INPUT_VAR_NAME_COUNT; i++) {
-        if (!want_aorc && is_aorc_only_input(input_var_names[i]))
+        if (should_skip_input(self, input_var_names[i]))
             continue;
         strcpy(names[j++], input_var_names[i]);
     }
@@ -777,6 +787,13 @@ static int Set_value(Bmi *self, const char *name, void *src) {
         double value = *(double*)src;
         if (value <= 0.0) return BMI_FAILURE;
         CONTEXT(self)->parameters.bare_soil_rsurf_exp = value;
+        return BMI_SUCCESS;
+    }
+
+    /* day_of_year from an external module suppresses internal calculation */
+    if (strcmp(name, "day_of_year") == 0) {
+        CONTEXT(self)->forcing.day_of_year = *(int*)src;
+        CONTEXT(self)->forcing.day_of_year_set_externally = TRUE;
         return BMI_SUCCESS;
     }
 
